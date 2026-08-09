@@ -11,16 +11,51 @@ The name is the argument. A deckle edge is what you get when a sheet is
 made rather than manufactured, and it's a promise that the page *ends* —
 which is why this is paginated and will never be an infinite scroll.
 
-```
+## Run it
+
+You need Node. Nothing else — there is no `npm install`, because there
+is nothing to install.
+
+```sh
+git clone <this repo> deckle
+cd deckle
 node dev.js
-# → http://127.0.0.1:8787
 ```
 
-Static server plus live reload, zero dependencies. It watches the four
-source files and pushes a reload over Server-Sent Events; the client
-script is injected into the HTML on the way out, so nothing in the
-source knows it exists. It also reconnects on its own, so you can edit
-`dev.js` and restart without touching the browser.
+Then open **<http://127.0.0.1:8787>**. Edit any of `index.html`,
+`styles.css`, `ink.js` or `page.js` and the browser reloads itself.
+
+That's the whole setup. A few things worth knowing once you're in:
+
+| To do this | Do that |
+|---|---|
+| Pick a nib | click the tray, bottom right — or press `2`–`5` (pen, pencil, highlighter, eraser) |
+| Stop drawing | `1`, `Esc`, or the ✋ button |
+| Undo / redo | `⌘Z` / `⇧⌘Z` (`ctrl` on Windows and Linux) |
+| Start over | **clear** — and `⌘Z` puts it back |
+| See it as paper | `⌘P`; the print view drops every faked texture |
+
+**Port already taken?** `dev.js` says so and exits rather than failing
+quietly. Use another: `PORT=8788 node dev.js`.
+
+**No Node handy?** Opening `index.html` straight from disk renders the
+page — there's no bundler, no modules and no fetching, so nothing needs
+a server. You lose live reload, and some browsers refuse `localStorage`
+on `file://`, so your ink may not survive a refresh. The page handles
+that without breaking; it just forgets.
+
+### What the dev server is
+
+Static file server plus live reload, zero dependencies, ~140 lines. It
+watches the four source files and pushes a reload over Server-Sent
+Events; the client script is injected into the HTML on the way out, so
+nothing in the source knows it exists. It also reconnects on its own,
+so you can edit `dev.js` and restart it without touching the browser.
+
+---
+
+The rest of this file is *why* the page is built the way it is. If you
+only wanted to run it, you're done — go draw on it.
 
 ## The techniques, in order of how much they matter
 
@@ -149,17 +184,24 @@ Known limit: ink lives on one canvas sized to the whole sheet, and a
 canvas won't split across a page break, so a drawing that spans several
 printed pages gets cut at the first one.
 
-## Using it
+## The two surfaces
 
-Pick a nib from the tray, bottom right — or press `1`–`5`, `Esc` to stop.
-`⌘Z` / `⇧⌘Z` walk the history, applied to whichever surface you last drew
-on (falling through to the other one when that one's empty) — and that
-history reaches back over `clear`, so the button is recoverable rather
-than final. In reading
-mode the page-wide canvas is `pointer-events: none` so text stays
-selectable; the scratch pad is always live. Everything you draw lives on
-a canvas sized to the whole sheet, so it scrolls with the page, survives
-a resize, and comes back after a reload.
+The controls are in [Run it](#run-it); this is the behaviour behind
+them, which is less obvious.
+
+There are two places to draw. The **scratch pad** is always live. The
+**sheet** only accepts marks once you've picked up a nib — in reading
+mode its canvas is `pointer-events: none`, so text stays selectable and
+you can't scribble on the page by accident.
+
+Undo applies to whichever surface you drew on last, falling through to
+the other one when that one has nothing left; the button is enabled if
+*either* surface can act, so it must never be a no-op. That history
+reaches back over `clear`, which is why the button is recoverable
+rather than final.
+
+Everything you draw lives on a canvas sized to the whole sheet, so it
+scrolls with the page, survives a resize, and comes back after a reload.
 
 ## Files
 
@@ -173,15 +215,14 @@ page.js      reveals, tilt, tool tray, storage, undo
 
 ## Next
 
-A draggable corner-peel page turn: the next sheet stacked underneath with
-a sliver of edge showing, grab the bottom corner to fold it back. Built
-from `clip-path` plus a mirrored shaded triangle rather than a rasterized
-3D flip, so the blend modes and SVG filters survive intact.
+See **[ROADMAP.md](ROADMAP.md)** for what's shipped, what's being worked
+on, and what's queued.
 
-Also on the list: pointer-tracked raking light, a paper-stock switcher
-(legal pad / graph / kraft), self-hosted fonts, an export so a drawing
-can leave the browser it was made in, and a hand-authored SVG wordmark
-that genuinely writes itself instead of being a font revealed by a mask.
+The headline item is a draggable corner-peel page turn: the next sheet
+stacked underneath with a sliver of edge showing, grab the bottom corner
+to fold it back. Built from `clip-path` plus a mirrored shaded triangle
+rather than a rasterized 3D flip, so the blend modes and SVG filters
+survive intact.
 
 ## Contributing
 
