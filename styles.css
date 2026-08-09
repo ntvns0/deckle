@@ -1,0 +1,679 @@
+/* ═══════════════════════════════════════════════════════════════
+   Deckle
+   Everything below is trying to answer one question: what makes a
+   flat beige rectangle stop reading as a flat beige rectangle?
+   Answer, mostly: grain, a raking light, and ink that multiplies.
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── the sheet ── */
+  --paper:        #f2ece0;
+  --paper-warm:   #efe6d5;
+  --paper-shade:  #ded2bd;
+
+  /* ── the desk underneath ── */
+  --desk:         #2c2823;
+  --desk-lo:      #191612;
+
+  /* ── inks ── */
+  --ink:          #2f3c58;   /* ballpoint blue-black  */
+  --ink-dark:     #232b40;   /* heading ink           */
+  --graphite:     #4d4a4c;   /* pencil                */
+  --rule:         #a9bfd0;   /* faded blue rule       */
+  --rule-red:     #d09aa2;   /* margin rule           */
+  --highlight:    #ffe24a;
+
+  /* Rule pitch. Body line-height is locked to this so the writing
+     actually sits on the lines instead of floating between them. */
+  --rule-h: 34px;
+
+  /* Procedural textures. Rendered once by the browser, then cached
+     as images — far cheaper than a live filter on a big surface. */
+  --tex-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='220' height='220' filter='url(%23g)'/%3E%3C/svg%3E");
+
+  --tex-fiber: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23f)'/%3E%3C/svg%3E");
+
+  --tex-fleck: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.02' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 0 0 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23s)'/%3E%3C/svg%3E");
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--desk-lo);
+  font-family: "Kalam", "Bradley Hand", "Segoe Print", cursive;
+  color: var(--ink);
+  overflow-x: hidden;
+}
+
+.defs { position: absolute; width: 0; height: 0; }
+
+/* ── the desk ───────────────────────────────────────────────── */
+.desk {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background:
+    radial-gradient(120% 90% at 22% 0%, #3a342c 0%, var(--desk) 42%, var(--desk-lo) 100%);
+}
+.desk::after {                       /* wood-ish grain on the desk */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--tex-fiber);
+  background-size: 900px 600px;
+  opacity: .09;
+  mix-blend-mode: overlay;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   THE SHEET
+   ═══════════════════════════════════════════════════════════════ */
+
+.sheet {
+  position: relative;
+  width: min(880px, 92vw);
+  margin: clamp(28px, 6vw, 84px) auto clamp(90px, 12vw, 150px);
+  /* Nothing sits at exactly zero degrees. */
+  transform: rotate(-0.22deg);
+}
+
+/* Base layer: paper colour, chewed edge, and the shadow that sells
+   the whole illusion. The deckle filter runs first so the drop
+   shadow traces the ragged silhouette, not a clean rectangle. */
+.sheet__grain {
+  position: absolute;
+  inset: 0;
+  background-color: var(--paper);
+  filter:
+    url(#f-deckle)
+    drop-shadow(0 2px 1px rgba(0,0,0,.28))
+    drop-shadow(0 22px 34px rgba(0,0,0,.34))
+    drop-shadow(0 44px 80px rgba(0,0,0,.22));
+}
+.sheet__grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--tex-grain);
+  background-size: 220px 220px;
+  opacity: .42;
+  mix-blend-mode: multiply;
+}
+
+/* Long directional fibers, plus the odd dark fleck of pulp. */
+.sheet__fibers {
+  position: absolute;
+  inset: 6px;
+  background-image: var(--tex-fiber), var(--tex-fleck);
+  background-size: 470px 330px, 300px 300px;
+  opacity: .17;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+/* Raking light from the upper left + a soft edge burn, so the sheet
+   reads as a physical surface rather than a swatch. */
+.sheet__light {
+  position: absolute;
+  inset: 4px;
+  pointer-events: none;
+  background:
+    linear-gradient(148deg,
+      rgba(255,255,255,.55) 0%,
+      rgba(255,255,255,.12) 26%,
+      rgba(255,255,255,0)   48%),
+    radial-gradient(115% 80% at 50% 44%,
+      rgba(0,0,0,0) 52%, rgba(88,72,48,.13) 100%);
+}
+
+/* ── ruled lines + margin ───────────────────────────────────── */
+.sheet__rules {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: .5;
+  /* First line lands where the body copy starts. */
+  background-image: repeating-linear-gradient(
+    to bottom,
+    transparent 0,
+    transparent calc(var(--rule-h) - 1px),
+    var(--rule) calc(var(--rule-h) - 1px),
+    var(--rule) var(--rule-h));
+  background-position: 0 12px;
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%);
+          mask-image: linear-gradient(to right, transparent 0, #000 4%, #000 96%, transparent 100%);
+}
+
+.sheet__margin {
+  position: absolute;
+  top: 0; bottom: 0;
+  left: clamp(46px, 9%, 96px);
+  width: 1.5px;
+  background: var(--rule-red);
+  opacity: .48;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+  /* even the margin rule was drawn by a hand */
+  transform: rotate(.12deg);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 3%, #000 97%, transparent 100%);
+          mask-image: linear-gradient(to bottom, transparent 0, #000 3%, #000 97%, transparent 100%);
+}
+
+/* Ink the visitor adds. Sits above the rules, below the type. */
+.sheet__ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+body.is-drawing .sheet__ink { pointer-events: auto; touch-action: none; }
+
+/* A ring left by a mug that was set down and forgotten. */
+.content::before {
+  content: "";
+  position: absolute;
+  top: 27%;
+  left: -16px;
+  width: 158px;
+  height: 150px;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: .55;
+  filter: url(#f-graphite) blur(.4px);
+  background:
+    radial-gradient(closest-side circle at 50% 50%,
+      rgba(120,78,38,0)    62%,
+      rgba(120,78,38,.30)  70%,
+      rgba(101,62,28,.42)  78%,
+      rgba(120,78,38,.16)  85%,
+      rgba(120,78,38,0)    92%);
+  transform: rotate(-8deg) scaleY(.94);
+}
+
+/* ── the tear along the bottom ──────────────────────────────── */
+.sheet__tear {
+  position: absolute;
+  left: 0; right: 0;
+  bottom: -26px;
+  height: 40px;
+  background: var(--paper);
+  filter: url(#f-tear) drop-shadow(0 10px 14px rgba(0,0,0,.3));
+  pointer-events: none;
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   CONTENT
+   ═══════════════════════════════════════════════════════════════ */
+
+.content {
+  position: relative;
+  z-index: 3;
+  padding:
+    clamp(40px, 6vw, 72px)
+    clamp(30px, 6vw, 78px)
+    clamp(60px, 8vw, 96px)
+    clamp(64px, 12%, 132px);   /* clears the red margin rule */
+}
+
+/* Every mark on the sheet multiplies into the fibers. */
+.content :is(h1, h2, p, li, aside, mark, code, .stamp, .signoff),
+.swash, .doodle-arrow {
+  mix-blend-mode: multiply;
+}
+
+/* ── masthead ───────────────────────────────────────────────── */
+.masthead { position: relative; margin-bottom: clamp(46px, 7vw, 78px); }
+
+.stamp {
+  position: absolute;
+  top: -14px;
+  right: 4px;
+  margin: 0;
+  font-size: 1.05rem;
+  letter-spacing: .06em;
+  color: var(--graphite);
+  opacity: .62;
+}
+
+.title {
+  font-family: "Caveat", cursive;
+  font-weight: 700;
+  font-size: clamp(4.4rem, 15vw, 10.5rem);
+  line-height: .84;
+  margin: 0;
+  color: var(--ink-dark);
+  letter-spacing: -.015em;
+  filter: url(#f-ink);
+  transform: rotate(-.7deg);
+}
+
+.swash {
+  display: block;
+  /* a hand-drawn rule overshoots the word a little, but not by much */
+  width: min(400px, 78%);
+  height: auto;
+  margin: -.35em 0 0 .1em;
+  color: var(--ink-dark);
+  opacity: .85;
+  transform: rotate(-.5deg);
+}
+
+/* A dictionary gloss, pencilled in under the wordmark. */
+.definition {
+  max-width: 34ch;
+  margin: .9em 0 0 .2em;
+  font-size: 1.16rem;
+  line-height: 1.34;
+  opacity: .62;
+}
+.definition em {
+  font-style: italic;
+  opacity: .8;
+}
+
+.dek {
+  max-width: 40ch;
+  margin: 1.1em 0 0;
+  font-size: 1.24rem;
+  line-height: var(--rule-h);
+  color: var(--ink);
+  opacity: .9;
+  filter: url(#f-ink);
+}
+
+/* ── entries ────────────────────────────────────────────────── */
+.entry {
+  position: relative;
+  margin: 0 0 clamp(44px, 6vw, 72px);
+}
+.entry--last { margin-bottom: clamp(24px, 4vw, 40px); }
+
+.h {
+  font-family: "Caveat", cursive;
+  font-weight: 600;
+  font-size: clamp(2.1rem, 5.4vw, 3.1rem);
+  line-height: 1.08;
+  margin: 0 0 .42em;
+  color: var(--ink-dark);
+  filter: url(#f-ink);
+}
+
+.entry p,
+.list li {
+  font-size: 1.15rem;
+  font-weight: 300;
+  /* locked to the rule pitch so the writing sits on the lines */
+  line-height: var(--rule-h);
+  max-width: 54ch;
+  margin: 0 0 var(--rule-h);
+  filter: url(#f-ink);
+}
+
+.entry em { font-style: normal; font-weight: 700; }
+
+code {
+  font-family: "Kalam", cursive;
+  font-weight: 400;
+  font-size: .96em;
+  padding: 0 .18em;
+  color: var(--ink-dark);
+  border-bottom: 1.5px dotted rgba(47,60,88,.45);
+}
+
+.list {
+  margin: 0;
+  padding: 0 0 0 1.4em;
+  list-style: none;
+}
+.list li { position: relative; margin-bottom: 6px; }
+.list li::before {                       /* a hand-drawn dash, not a bullet */
+  content: "–";
+  position: absolute;
+  left: -1.1em;
+  color: var(--ink);
+  opacity: .75;
+}
+
+/* Highlighter: uneven top and bottom edges, and it multiplies, so
+   the type underneath stays readable instead of being painted over. */
+.hl {
+  background: linear-gradient(177deg,
+    rgba(255,226,74,0)   4%,
+    rgba(255,226,74,.82) 13%,
+    rgba(255,232,96,.72) 50%,
+    rgba(255,224,66,.84) 86%,
+    rgba(255,226,74,0)   96%);
+  color: inherit;
+  padding: .04em .22em;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+/* ── pencil margin notes ────────────────────────────────────── */
+.pencil {
+  font-family: "Caveat", cursive;
+  color: var(--graphite);
+  filter: url(#f-graphite);
+}
+
+/* Annotations live in the open ground to the right of the text
+   column — the left margin is only wide enough for the red rule. */
+.margin-note {
+  position: absolute;
+  right: -48px;
+  top: .5em;
+  width: 134px;
+  margin: 0;
+  font-size: 1.08rem;
+  line-height: 1.26;
+  text-align: left;
+  opacity: .66;
+}
+.entry:nth-of-type(3) .margin-note { top: 3.2em; }
+
+.signoff {
+  font-family: "Caveat", cursive;
+  font-size: 1.5rem;
+  color: var(--graphite);
+  opacity: .7;
+  margin: 2.2em 0 0;
+  text-align: right;
+  filter: url(#f-graphite);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   THE PAD
+   ═══════════════════════════════════════════════════════════════ */
+
+.pad-wrap {
+  position: relative;
+  margin: clamp(52px, 7vw, 84px) 0 clamp(64px, 9vw, 104px);
+  transform: rotate(.5deg);
+}
+
+.pad-label {
+  margin: 0 0 10px 4px;
+  font-size: 1.3rem;
+  opacity: .7;
+}
+
+.pad {
+  position: relative;
+  height: clamp(200px, 30vw, 268px);
+  border: 1.5px dashed rgba(77,74,76,.38);
+  border-radius: 3px;
+  background: rgba(255,255,255,.16);
+  overflow: hidden;
+}
+
+.pad__ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  mix-blend-mode: multiply;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+.pad__hint {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  font-family: "Caveat", cursive;
+  font-size: 1.5rem;
+  color: var(--graphite);
+  opacity: .3;
+  pointer-events: none;
+  transition: opacity .4s ease;
+}
+.pad.has-ink .pad__hint { opacity: 0; }
+
+.doodle-arrow {
+  position: absolute;
+  right: -4px;
+  bottom: -74px;
+  width: 96px;
+  color: var(--graphite);
+  opacity: .55;
+  transform: rotate(-14deg) scaleX(-1);
+}
+
+/* ── masking tape ───────────────────────────────────────────── */
+/* Masking tape. Under multiply a white gradient does nothing at all,
+   so the strip is built the way the real thing actually reads: a
+   faint warm-grey wash that darkens along both long edges, where the
+   adhesive lifts and catches a line of shadow. */
+.tape {
+  position: absolute;
+  z-index: 6;
+  width: 110px;
+  height: 28px;
+  background:
+    linear-gradient(to bottom,
+      rgba(168,158,132,.58) 0%,
+      rgba(214,206,182,.26) 16%,
+      rgba(226,219,197,.20) 50%,
+      rgba(214,206,182,.28) 84%,
+      rgba(168,158,132,.55) 100%);
+  mix-blend-mode: multiply;
+  /* torn ends, then a shadow that follows them */
+  filter: url(#f-tape) drop-shadow(0 2px 3px rgba(70,58,38,.22));
+  pointer-events: none;
+}
+.tape::after {                            /* tape has grain too */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--tex-grain);
+  background-size: 110px 60px;
+  opacity: .22;
+}
+.tape--tl { top: -16px;    left: -26px;  transform: rotate(-24deg); }
+.tape--br { bottom: -14px; right: -24px; transform: rotate(-21deg); }
+
+/* ── sticky note ────────────────────────────────────────────── */
+.sticky {
+  position: relative;
+  width: 214px;
+  margin: 0 0 clamp(46px, 7vw, 76px) auto;
+  padding: 26px 20px 20px;
+  background: linear-gradient(168deg, #fff08a 0%, #ffe86a 58%, #f5d94e 100%);
+  box-shadow:
+    0 1px 1px rgba(0,0,0,.16),
+    0 12px 22px rgba(0,0,0,.20);
+  transform: rotate(2.4deg);
+}
+.sticky::after {                          /* the note has grain as well */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--tex-grain);
+  background-size: 180px 180px;
+  opacity: .3;
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+.sticky p {
+  margin: 0;
+  font-family: "Caveat", cursive;
+  font-size: 1.34rem;
+  line-height: 1.36;
+  color: #4a4636;
+  filter: url(#f-ink);
+  mix-blend-mode: multiply;
+}
+.tape--sticky {
+  top: -15px;
+  left: 50%;
+  width: 92px;
+  height: 28px;
+  transform: translateX(-50%) rotate(-3deg);
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   THE PEN TRAY
+   ═══════════════════════════════════════════════════════════════ */
+
+.tray {
+  position: fixed;
+  right: clamp(14px, 2.4vw, 26px);
+  bottom: clamp(14px, 2.4vw, 26px);
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 999px;
+  background: rgba(30,27,23,.82);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+
+.tray__btn {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #e8e0d0;
+  font: inherit;
+  font-size: .92rem;
+  cursor: pointer;
+  transition: background .18s ease, transform .18s ease;
+}
+.tray__btn:hover  { background: rgba(255,255,255,.11); }
+.tray__btn:active { transform: scale(.93); }
+.tray__btn.is-active { background: rgba(255,255,255,.2); }
+.tray__btn:focus-visible { outline: 2px solid #ffe24a; outline-offset: 2px; }
+
+.tray__btn[disabled] {
+  opacity: .3;
+  cursor: default;
+  pointer-events: none;
+}
+.tray__btn[data-action="undo"],
+.tray__btn[data-action="redo"] {
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.tray__btn--clear {
+  width: auto;
+  padding: 0 14px;
+  border-radius: 999px;
+  font-family: "Caveat", cursive;
+  font-size: 1.1rem;
+  opacity: .72;
+}
+
+.tray__sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 2px;
+  background: rgba(255,255,255,.18);
+}
+
+/* Little nib swatches, so the tray reads as a row of actual pens. */
+.tray__ico { font-size: 1rem; line-height: 1; }
+.tray__ico--pen,
+.tray__ico--pencil,
+.tray__ico--marker,
+.tray__ico--eraser {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.28);
+}
+.tray__ico--pen    { background: #2f3c58; }
+.tray__ico--pencil { background: #4d4a4c; }
+.tray__ico--marker { background: #ffe24a; }
+.tray__ico--eraser { background: #e7ded0; }
+
+body.is-drawing { cursor: crosshair; }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   WRITING ON
+   Headings wipe left-to-right, the way a hand crosses a page.
+   ═══════════════════════════════════════════════════════════════ */
+
+.write {
+  -webkit-mask-image: linear-gradient(90deg, #000 0 0);
+          mask-image: linear-gradient(90deg, #000 0 0);
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  -webkit-mask-size: 0% 100%;
+          mask-size: 0% 100%;
+}
+.write.is-written {
+  -webkit-mask-size: 105% 100%;
+          mask-size: 105% 100%;
+  transition: -webkit-mask-size 1.05s cubic-bezier(.42,.62,.3,1),
+                      mask-size 1.05s cubic-bezier(.42,.62,.3,1);
+}
+.title.is-written {
+  transition: -webkit-mask-size 1.5s cubic-bezier(.38,.66,.32,1),
+                      mask-size 1.5s cubic-bezier(.38,.66,.32,1);
+}
+
+.fade {
+  opacity: 0;
+  transform: translateY(9px);
+}
+.fade.is-written {
+  opacity: 1;
+  transform: none;
+  transition: opacity .8s ease, transform .8s cubic-bezier(.2,.7,.3,1);
+}
+
+/* SVG strokes draw themselves in. */
+.draw {
+  stroke-dasharray: var(--len, 700);
+  stroke-dashoffset: var(--len, 700);
+}
+.draw.is-written {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 1s cubic-bezier(.4,.6,.3,1);
+}
+.draw--late.is-written { transition-delay: .42s; }
+
+
+@media (prefers-reduced-motion: reduce) {
+  .write, .fade, .draw {
+    opacity: 1;
+    transform: none;
+    -webkit-mask-size: 105% 100%;
+            mask-size: 105% 100%;
+    stroke-dashoffset: 0;
+    transition: none !important;
+  }
+}
+
+@media (max-width: 720px) {
+  :root { --rule-h: 31px; }
+  .margin-note { position: static; width: auto; text-align: left;
+                 margin: 0 0 10px; opacity: .6; }
+  .entry:nth-of-type(3) .margin-note { right: auto; }
+  .content::before { right: -50px; opacity: .34; }
+  .sticky { margin-right: 4px; }
+  .doodle-arrow { display: none; }
+}

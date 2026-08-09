@@ -1,0 +1,161 @@
+# Deckle
+
+> **deckle** *(n.)* — the ragged edge of a sheet formed by hand, never
+> cut by a machine.
+
+A website that tries very hard to be a physical sheet of paper you can
+write on. No build step, no dependencies, no design tool — four source
+files and a browser, plus a dev server if you want live reload.
+
+The name is the argument. A deckle edge is what you get when a sheet is
+made rather than manufactured, and it's a promise that the page *ends* —
+which is why this is paginated and will never be an infinite scroll.
+
+```
+node dev.js
+# → http://127.0.0.1:8787
+```
+
+Static server plus live reload, zero dependencies. It watches the four
+source files and pushes a reload over Server-Sent Events; the client
+script is injected into the HTML on the way out, so nothing in the
+source knows it exists. It also reconnects on its own, so you can edit
+`dev.js` and restart without touching the browser.
+
+## The techniques, in order of how much they matter
+
+**1. Ink multiplies.** This is the whole thing. Composite type normally
+over a textured background and the texture dies underneath the glyphs —
+you get letters sitting *on* a photo of paper. `mix-blend-mode: multiply`
+makes the type a stain *in* the sheet, and the fibers show straight
+through it. Every mark here multiplies: the type, the rules, the tape,
+the coffee ring, the highlighter, and anything you draw.
+
+**2. The substrate is three stacked noise layers,** not an image:
+
+| Layer | What it does |
+|---|---|
+| `--tex-grain` | high-frequency `feTurbulence`, the tooth of the sheet |
+| `--tex-fiber` | anisotropic turbulence (`baseFrequency: 0.004 0.9`) → long fibers |
+| `--tex-fleck` | `feComponentTransfer` with a `discrete` alpha ramp → sparse dark specks |
+
+They're inlined as `data:image/svg+xml` background images, so the browser
+rasterizes each one once and caches it. A live SVG filter over a surface
+that big would repaint on every scroll.
+
+**3. Displacement kills the repeated-glyph tell.** A font renders the
+third `e` in a paragraph pixel-identical to the first, and the eye catches
+it even when it can't say why. `#f-ink` pushes every glyph a couple of
+pixels off its outline with a `feDisplacementMap`, so no two are the same.
+`#f-graphite` is the same idea, harder, for pencil.
+
+**4. Edges are displaced, not drawn.** The deckle (`#f-deckle`), the torn
+bottom (`#f-tear`) and the torn tape ends (`#f-tape`) are all one
+`feTurbulence` + `feDisplacementMap` pair at different frequencies. Order
+matters in `filter:` — displace *first*, then `drop-shadow`, so the shadow
+traces the ragged silhouette instead of a clean rectangle.
+
+**5. Nothing is at zero degrees.** The sheet, the rules, every heading,
+every note is rotated a fraction of a degree, with a little random jitter
+added at runtime so repeated elements don't line up with each other.
+
+**6. Baselines sit on the rules.** `--rule-h` sets both the ruled-line
+pitch and the `line-height` of every paragraph, so the writing lands on
+the lines instead of floating between them.
+
+## The ink engine (`ink.js`)
+
+~300 lines, no dependencies. A stroke drawn with a constant `lineWidth`
+reads as a computer line every time, so instead each stroke is a chain of
+filled quads whose width tracks pointer velocity — fast is thin, slow is
+fat — smoothed between samples. Real stylus pressure overrides velocity
+when a tablet reports it. `getCoalescedEvents()` recovers the samples the
+browser batched between frames, which is the difference between a smooth
+curve and a polyline on a fast flick.
+
+Four nibs:
+
+- **pen** — solid variable-width quads
+- **pencil** — no solid fill anywhere; graphite is stippled across the
+  segment and a hashed "tooth" function keeps the low spots of the paper bare
+- **highlighter** — drawn opaque into an offscreen buffer and composited
+  *once* at low alpha on pointerup, so a stroke crossing itself stays one
+  flat pass instead of darkening at the intersection
+- **eraser** — `destination-out`
+
+Coordinates come from `offsetX`/`offsetY` rather than
+`clientX - rect.left`, because the sheet is rotated and offset coords
+respect the element's transform where a bounding-rect subtraction wouldn't.
+
+## Strokes are data, not pixels
+
+The canvas is only ever a *rendering* of a stroke list. Each stroke is
+`{tool, seed, p: [x, y, w, …]}`, and that one decision buys four things
+at once:
+
+- **Undo / redo** (`⌘Z`, `⇧⌘Z`) — pop a stroke, re-render the list.
+- **Persistence** — `localStorage`, written on a 400 ms debounce. A few
+  hundred strokes is single-digit kilobytes.
+- **Crisp resizing** — coordinates are stored as a *fraction of the sheet
+  width*, so a resize rescales the drawing and redraws it at the new
+  size. Rescaling the old bitmap instead would soften the ink a little
+  more on every resize.
+- **Deterministic pencil** — graphite is scattered at random, so each
+  stroke carries a seed and the scatter is replayed from a `mulberry32`
+  PRNG. Without it every undo would re-shuffle the pencil. Verified:
+  undo→redo round-trips to the identical pixel count.
+
+Storage degrades gracefully — on a quota error it drops the oldest
+quarter of the strokes and retries rather than losing everything, and a
+`localStorage` that throws outright (private mode) just means the page
+forgets, not that it breaks.
+
+One honest limitation: replayed points are rounded to ~0.01 px, so a
+reload reproduces a drawing to about 0.05% coverage drift rather than
+bit-exactly. It's invisible, and it's confined to pencil grain.
+
+## Using it
+
+Pick a nib from the tray, bottom right — or press `1`–`5`, `Esc` to stop.
+`⌘Z` / `⇧⌘Z` walk the history, applied to whichever surface you last drew
+on (falling through to the other one when that one's empty). In reading
+mode the page-wide canvas is `pointer-events: none` so text stays
+selectable; the scratch pad is always live. Everything you draw lives on
+a canvas sized to the whole sheet, so it scrolls with the page, survives
+a resize, and comes back after a reload.
+
+## Files
+
+```
+dev.js       static server + live reload
+index.html   markup + the SVG filter definitions
+styles.css   the paper
+ink.js       the variable-width stroke engine + stroke model
+page.js      reveals, tilt, tool tray, storage, undo
+```
+
+## Next
+
+A draggable corner-peel page turn: the next sheet stacked underneath with
+a sliver of edge showing, grab the bottom corner to fold it back. Built
+from `clip-path` plus a mirrored shaded triangle rather than a rasterized
+3D flip, so the blend modes and SVG filters survive intact.
+
+Also on the list: pointer-tracked raking light, a print stylesheet, a
+paper-stock switcher (legal pad / graph / kraft), self-hosted fonts, and
+a hand-authored SVG wordmark that genuinely writes itself instead of
+being a font revealed by a mask.
+
+## Contributing
+
+Issues and pull requests are welcome. There's no build step and nothing
+to install — clone it, run `node dev.js`, and edit. If you're adding a
+nib, it's a single entry in the `NIBS` table in `ink.js` plus a swatch in
+the tray.
+
+## License
+
+[MIT](LICENSE).
+
+Fonts are Caveat and Kalam from Google Fonts, with a `cursive` fallback if
+they don't load. `prefers-reduced-motion` skips every animation.

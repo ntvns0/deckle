@@ -1,0 +1,10 @@
+# Deckle has no build step and no dependencies. This is here to keep
+# stray local files out, not to hide an artifact directory.
+
+node_modules/
+*.log
+.DS_Store
+.env
+.env.*
+.vscode/
+.idea/

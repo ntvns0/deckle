@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deckle — a website that thinks it's a page</title>
+<meta name="description" content="Deckle: an experiment in rendering real paper and real ink in a browser. Named for the ragged edge of a hand-made sheet.">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     Filters. These do the heavy lifting: every ragged edge and
+     every wobbling letterform on this page comes from turbulence.
+     ══════════════════════════════════════════════════════════ -->
+<svg class="defs" aria-hidden="true" focusable="false">
+  <defs>
+    <!-- Nudges letterforms off their perfect vector outlines, so the
+         same glyph never looks quite the same twice. -->
+    <filter id="f-ink" x="-6%" y="-6%" width="112%" height="112%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.045 0.09"
+                    numOctaves="3" seed="11" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="2.4"
+                         xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+
+    <!-- Same idea, stronger: pencil catches the tooth of the sheet. -->
+    <filter id="f-graphite" x="-8%" y="-8%" width="116%" height="116%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.07 0.13"
+                    numOctaves="4" seed="4" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.4"
+                         xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+
+    <!-- Chews the straight edge off the sheet itself. Kept to a long
+         wavelength and a small scale — a deckle is a slow wander, not
+         a row of teeth. -->
+    <filter id="f-deckle" x="-4%" y="-3%" width="108%" height="106%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.0055 0.0075"
+                    numOctaves="4" seed="19" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="5.5"
+                         xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+
+    <!-- Torn ends on a strip of masking tape. -->
+    <filter id="f-tape" x="-12%" y="-25%" width="124%" height="150%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.04 0.12"
+                    numOctaves="3" seed="23" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.6"
+                         xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+
+    <!-- A torn bottom edge: violent low-frequency displacement. -->
+    <filter id="f-tear" x="-6%" y="-40%" width="112%" height="180%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.02 0.5"
+                    numOctaves="4" seed="8" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="16"
+                         xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>
+
+
+<!-- The desk the sheet is lying on -->
+<div class="desk" aria-hidden="true"></div>
+
+<main class="sheet" id="sheet">
+  <!-- Substrate layers, painted behind everything -->
+  <div class="sheet__grain"  aria-hidden="true"></div>
+  <div class="sheet__fibers" aria-hidden="true"></div>
+  <div class="sheet__light"  aria-hidden="true"></div>
+  <div class="sheet__rules"  aria-hidden="true"></div>
+  <div class="sheet__margin" aria-hidden="true"></div>
+
+  <!-- Ink you add yourself lives here, under the text, over the rules -->
+  <canvas id="ink" class="sheet__ink"></canvas>
+
+  <div class="content">
+
+    <!-- ─────────────────────────── masthead ─────────────────────────── -->
+    <header class="masthead">
+      <p class="stamp pencil" data-tilt="-1.4">no. 01</p>
+
+      <h1 class="title write" data-write>Deckle</h1>
+
+      <svg class="swash" viewBox="0 0 520 40" fill="none" aria-hidden="true">
+        <path class="draw" d="M8 26 C 92 11, 214 7, 330 14 C 396 18, 452 24, 508 15"
+              stroke="currentColor" stroke-width="3.4" stroke-linecap="round"/>
+        <path class="draw draw--late" d="M22 32 C 120 21, 250 18, 372 23"
+              stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+              opacity=".55"/>
+      </svg>
+
+      <p class="definition pencil fade" data-fade data-tilt="-0.5">
+        deckle <em>(n.)</em> — the ragged edge of a sheet
+        formed by hand, never cut by a machine
+      </p>
+
+      <p class="dek fade" data-fade>
+        A website that thinks it's a page. No design tool involved —
+        just turbulence, blend modes, and a canvas that knows how hard
+        you're pressing.
+      </p>
+    </header>
+
+
+    <!-- ─────────────────────────── entry 1 ─────────────────────────── -->
+    <section class="entry">
+      <aside class="margin-note pencil" data-tilt="-2.6">
+        ← this is<br>the whole trick
+      </aside>
+
+      <h2 class="h write" data-write>The ink has to sink in</h2>
+
+      <p class="fade" data-fade>
+        The single thing that separates convincing paper from a beige
+        rectangle is <em>multiply</em>. Ink is not a layer sitting on
+        top of a sheet — it's a stain <em>in</em> it. Composite your
+        type normally and the grain dies underneath it. Composite it
+        with <code>mix-blend-mode: multiply</code> and the fibers show
+        straight through the letterforms.
+      </p>
+
+      <p class="fade" data-fade>
+        Every mark on this page multiplies: the type, the rules, the
+        coffee ring, the highlighter, and anything you draw yourself.
+        Nothing here is opaque.
+      </p>
+    </section>
+
+
+    <!-- ─────────────────────────── entry 2 ─────────────────────────── -->
+    <section class="entry">
+      <h2 class="h write" data-write>Nothing is straight</h2>
+
+      <p class="fade" data-fade>
+        Real handwriting has no repeated glyphs. A font does — the
+        third <em>e</em> in a paragraph is pixel-identical to the
+        first, and your eye catches it instantly even if you can't say
+        why. So every glyph on this page is pushed off its outline by
+        a <code>feDisplacementMap</code>, and every block is rotated a
+        fraction of a degree off true.
+      </p>
+
+      <p class="fade" data-fade>
+        <mark class="hl">Nothing on this page is at exactly zero
+        degrees.</mark> The sheet, the rules, the sticky note, each
+        heading — all of it sits a little crooked, because a hand put
+        it there.
+      </p>
+    </section>
+
+
+    <!-- ─────────────────────────── entry 3 ─────────────────────────── -->
+    <section class="entry">
+      <aside class="margin-note pencil" data-tilt="2.2">
+        pen ≠ pencil<br>≠ marker
+      </aside>
+
+      <h2 class="h write" data-write>Pressure, not thickness</h2>
+
+      <p class="fade" data-fade>
+        A stroke drawn with a constant <code>lineWidth</code> reads as
+        a computer line, always. Real nibs swell where the hand slows
+        and thin out where it accelerates. So the pad below tracks
+        pointer velocity and renders each stroke as a chain of filled
+        quads with a width that breathes — plus real stylus pressure
+        if you have a tablet plugged in.
+      </p>
+    </section>
+
+
+    <!-- ─────────────────────────── the pad ─────────────────────────── -->
+    <section class="pad-wrap" id="pad-wrap">
+      <div class="tape tape--tl" aria-hidden="true"></div>
+      <div class="tape tape--br" aria-hidden="true"></div>
+
+      <p class="pad-label pencil" data-tilt="-1">
+        go on — write something
+      </p>
+
+      <div class="pad" id="pad">
+        <canvas id="pad-ink" class="pad__ink"></canvas>
+        <p class="pad__hint" id="pad-hint">drag to draw</p>
+      </div>
+
+      <svg class="doodle-arrow" viewBox="0 0 120 90" fill="none" aria-hidden="true">
+        <path class="draw" d="M8 8 C 44 22, 58 44, 52 74"
+              stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/>
+        <path class="draw draw--late" d="M38 60 L 52 78 L 68 62"
+              stroke="currentColor" stroke-width="2.6"
+              stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </section>
+
+
+    <!-- ─────────────────────────── sticky ─────────────────────────── -->
+    <div class="sticky" data-tilt="2.4">
+      <div class="tape tape--sticky" aria-hidden="true"></div>
+      <p>
+        Everything here is<br>
+        four files and zero<br>
+        dependencies.
+      </p>
+    </div>
+
+
+    <!-- ─────────────────────────── closing ─────────────────────────── -->
+    <section class="entry entry--last">
+      <h2 class="h write" data-write>What's actually on this page</h2>
+
+      <ul class="list">
+        <li class="fade" data-fade>Grain, fibers and a raking light — three
+          stacked turbulence layers, rendered once, cached as images.</li>
+        <li class="fade" data-fade>A deckled edge — the one this is named
+          after — and a torn bottom, both displacement maps rather than
+          images.</li>
+        <li class="fade" data-fade>Headings that wipe on the way a hand
+          crosses a page, left to right.</li>
+        <li class="fade" data-fade>A variable-width ink engine with four
+          nibs, running on pointer velocity.</li>
+      </ul>
+
+      <p class="signoff" data-tilt="-1.8">— drawn in a browser</p>
+    </section>
+
+  </div>
+
+  <div class="sheet__tear" aria-hidden="true"></div>
+</main>
+
+
+<!-- ─────────────────────────── the pen tray ─────────────────────────── -->
+<div class="tray" role="toolbar" aria-label="Drawing tools">
+  <button class="tray__btn is-active" data-tool="read" aria-pressed="true"
+          title="Read (no drawing)"><span class="tray__ico">✋</span></button>
+  <button class="tray__btn" data-tool="pen" aria-pressed="false"
+          title="Ballpoint pen"><span class="tray__ico tray__ico--pen"></span></button>
+  <button class="tray__btn" data-tool="pencil" aria-pressed="false"
+          title="Pencil"><span class="tray__ico tray__ico--pencil"></span></button>
+  <button class="tray__btn" data-tool="marker" aria-pressed="false"
+          title="Highlighter"><span class="tray__ico tray__ico--marker"></span></button>
+  <button class="tray__btn" data-tool="eraser" aria-pressed="false"
+          title="Eraser"><span class="tray__ico tray__ico--eraser"></span></button>
+  <span class="tray__sep" aria-hidden="true"></span>
+  <button class="tray__btn" data-action="undo" disabled
+          title="Undo (⌘Z)" aria-label="Undo">↶</button>
+  <button class="tray__btn" data-action="redo" disabled
+          title="Redo (⇧⌘Z)" aria-label="Redo">↷</button>
+  <button class="tray__btn tray__btn--clear" data-action="clear"
+          title="Clear all ink">clear</button>
+</div>
+
+<script src="ink.js"></script>
+<script src="page.js"></script>
+</body>
+</html>
