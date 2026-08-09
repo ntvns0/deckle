@@ -79,6 +79,10 @@
     /* The document. Everything on screen is a rendering of this. */
     this.strokes = [];
     this.undone = [];
+    /* Clearing throws away every stroke at once, which is too much
+       to lose to a stray click. The discarded lists are kept here so
+       undo can walk back through them like any other edit. */
+    this.cleared = [];
     this.current = null;
     this.rng = Math.random;
 
@@ -113,6 +117,16 @@
 
   Object.defineProperty(InkSurface.prototype, "hasInk", {
     get: function () { return this.strokes.length > 0; }
+  });
+
+  /* History reaches back past a clear, so "is there anything to undo"
+     is no longer the same question as "is there ink on the canvas". */
+  Object.defineProperty(InkSurface.prototype, "canUndo", {
+    get: function () { return this.strokes.length > 0 || this.cleared.length > 0; }
+  });
+
+  Object.defineProperty(InkSurface.prototype, "canRedo", {
+    get: function () { return this.undone.length > 0; }
   });
 
   /* ── geometry ────────────────────────────────────────────────
@@ -165,18 +179,31 @@
     }
   };
 
+  /* Clear is an edit like any other, not a demolition: the stroke
+     list is set aside rather than dropped, so undo brings it back. */
   InkSurface.prototype.clear = function () {
+    if (!this.strokes.length) return false;
+    this.cleared.push(this.strokes);
     this.strokes = [];
     this.undone = [];
     this.redraw();
     this._commit();
+    return true;
   };
 
+  /* Peel one stroke off the top; when the page is bare, step back
+     over the clear that emptied it. */
   InkSurface.prototype.undo = function () {
-    if (!this.strokes.length) return false;
-    this.undone.push(this.strokes.pop());
+    if (this.strokes.length) {
+      this.undone.push(this.strokes.pop());
+    } else if (this.cleared.length) {
+      this.strokes = this.cleared.pop();
+    } else {
+      return false;
+    }
     this.redraw();
     this._commit();
+    if (this.strokes.length && this.onFirstMark) this.onFirstMark();
     return true;
   };
 
@@ -198,6 +225,7 @@
       return s && NIBS[s.tool] && Array.isArray(s.p) && s.p.length >= 3;
     });
     this.undone = [];
+    this.cleared = [];
     this.redraw();
     if (this.strokes.length && this.onFirstMark) this.onFirstMark();
   };

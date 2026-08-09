@@ -179,32 +179,31 @@
   });
 
   function refreshUndo() {
-    if (undoBtn) undoBtn.disabled = !(padInk.hasInk || sheetInk.hasInk);
-    if (redoBtn) {
-      redoBtn.disabled = !(padInk.undone.length || sheetInk.undone.length);
-    }
-    if (!padInk.hasInk) pad.classList.remove("has-ink");
+    if (undoBtn) undoBtn.disabled = !(padInk.canUndo || sheetInk.canUndo);
+    if (redoBtn) redoBtn.disabled = !(padInk.canRedo || sheetInk.canRedo);
+    /* The hint under the pad follows the ink, in both directions —
+       undoing a clear has to bring the pad back to life. */
+    pad.classList.toggle("has-ink", padInk.hasInk);
   }
 
-  function pickSurface(prop) {
-    /* Prefer the surface you were last drawing on, but fall through
-       to the other one when it's empty — the button is enabled if
-       *either* surface has history, so it must never be a no-op.
-       (An empty array is still truthy, hence the explicit length.) */
-    if (lastTouched[prop].length) return lastTouched;
+  /* Prefer the surface you were last drawing on, but fall through to
+     the other one when it has nothing left — the button is enabled if
+     *either* surface can act, so it must never be a no-op. */
+  function pickSurface(can) {
+    if (lastTouched[can]) return lastTouched;
     var other = lastTouched === padInk ? sheetInk : padInk;
-    return other[prop].length ? other : null;
+    return other[can] ? other : null;
   }
 
   function undo() {
-    var s = pickSurface("strokes");
-    if (s && s.strokes.length) { s.undo(); lastTouched = s; }
+    var s = pickSurface("canUndo");
+    if (s) { s.undo(); lastTouched = s; }
     refreshUndo();
   }
 
   function redo() {
-    var s = pickSurface("undone");
-    if (s && s.undone.length) { s.redo(); lastTouched = s; }
+    var s = pickSurface("canRedo");
+    if (s) { s.redo(); lastTouched = s; }
     refreshUndo();
   }
 
@@ -234,13 +233,14 @@
   if (undoBtn) undoBtn.addEventListener("click", undo);
   if (redoBtn) redoBtn.addEventListener("click", redo);
 
-  document.querySelector('[data-action="clear"]')
-    .addEventListener("click", function () {
+  var clearBtn = document.querySelector('[data-action="clear"]');
+  if (clearBtn) {
+    clearBtn.addEventListener("click", function () {
       sheetInk.clear();
       padInk.clear();
-      pad.classList.remove("has-ink");
       refreshUndo();
     });
+  }
 
   /* 1–5 pick up a nib; ⌘Z / ctrl-Z walks history. */
   var keymap = { "1": "read", "2": "pen", "3": "pencil", "4": "marker", "5": "eraser" };

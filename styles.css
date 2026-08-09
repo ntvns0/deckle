@@ -677,3 +677,104 @@ body.is-drawing { cursor: crosshair; }
   .sticky { margin-right: 4px; }
   .doodle-arrow { display: none; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   PRINT
+   The one place the argument actually gets tested. Everything
+   above is an impression of paper; a printer hands you the real
+   thing, with grain and tooth and whatever light is in the room
+   already included. So the simulation comes off and what's left
+   is only the marks — the type, the ruling, and your ink.
+   ═══════════════════════════════════════════════════════════════ */
+
+@page { margin: 16mm; }
+
+@media print {
+
+  /* Every one of these is faking something the sheet in the tray
+     supplies for free, plus the furniture that has no business on
+     paper at all. */
+  .desk,
+  .sheet__grain,
+  .sheet__fibers,
+  .sheet__light,
+  .sheet__tear,
+  .content::before,        /* the coffee ring */
+  .tape,
+  .tray,
+  .pad__hint,
+  .doodle-arrow {
+    display: none !important;
+  }
+
+  html, body {
+    background: #fff;
+    /* overflow-x:hidden on body clips every page after the first */
+    overflow: visible;
+  }
+
+  /* Square to the page. The tilt was there to say a hand put this
+     down; now a hand is holding it. */
+  .sheet {
+    width: 100%;
+    margin: 0;
+    transform: none;
+  }
+
+  /* The side padding isn't decoration — it's what keeps the writing
+     off the red margin rule, so it has to survive. Only the outer
+     air goes, since @page supplies that now. The scrap of headroom
+     is for the "no. 01" stamp, which hangs above the masthead and
+     would otherwise be trimmed off into the page margin. */
+  .content { padding: 18px 0 0 clamp(58px, 11%, 112px); }
+
+  /* The ruling is the sheet, not decoration — but it's painted as a
+     background, and browsers drop backgrounds from print unless you
+     ask for them by name. */
+  .sheet__rules,
+  .sheet__margin {
+    -webkit-print-color-adjust: exact;
+            print-color-adjust: exact;
+  }
+  .sheet__rules  { opacity: .34; }   /* toner is darker than a screen */
+  .sheet__margin { opacity: .38; }
+
+  /* Ink you drew needs no help: a canvas prints as content, not as
+     a background. It does not split across a page break, though. */
+
+  /* Nothing has scrolled into view at print time, so nothing has
+     been written on yet — without this, a fresh load prints a
+     beautifully textured blank sheet. */
+  .write, .fade, .draw {
+    opacity: 1 !important;
+    transform: none !important;
+    -webkit-mask-size: 105% 100% !important;
+            mask-size: 105% 100% !important;
+    stroke-dashoffset: 0 !important;
+    transition: none !important;
+  }
+
+  /* Margin notes hang off the right edge of the sheet, which on
+     paper is off the paper. Fold them in, as the narrow screen does. */
+  .margin-note {
+    position: static;
+    width: auto;
+    margin: 0 0 10px;
+    opacity: .7;
+  }
+
+  /* A printed sticky can't be a solid yellow block — that's a fistful
+     of toner for three lines. Drawn as an outline instead. */
+  .sticky {
+    background: none;
+    box-shadow: none;
+    border: 1.5px solid rgba(90, 84, 60, .55);
+  }
+  .sticky p { color: #3f3b30; }
+
+  /* Don't break a page through the middle of a thought, and never
+     leave a heading stranded at the foot of one. */
+  .entry, .pad-wrap, .sticky, .list li { break-inside: avoid; }
+  .masthead, .title, .h { break-after: avoid; }
+}

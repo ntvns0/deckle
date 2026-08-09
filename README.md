@@ -110,15 +110,52 @@ quarter of the strokes and retries rather than losing everything, and a
 `localStorage` that throws outright (private mode) just means the page
 forgets, not that it breaks.
 
+**Clear is an edit, not a demolition.** It used to empty the stroke list
+*and* the redo stack, so one stray click destroyed a drawing with no way
+back — a strange thing to allow on a page whose whole argument is that
+strokes are data. Now the discarded list is set aside on a stack and
+`⌘Z` walks back over the clear like any other edit. `canUndo` is
+therefore no longer the same question as `hasInk`, which is why the tray
+asks the surface rather than counting strokes. The one honest limit: the
+snapshot lives in memory, not in `localStorage`, so a clear you haven't
+undone before you reload is permanent.
+
 One honest limitation: replayed points are rounded to ~0.01 px, so a
 reload reproduces a drawing to about 0.05% coverage drift rather than
 bit-exactly. It's invisible, and it's confined to pencil grain.
+
+## Printing it
+
+The premise of this thing is that a website can be a page, and the one
+moment that claim gets tested for real is `⌘P`. So the print stylesheet
+inverts the entire argument instead of preserving it: a printer already
+hands you grain, tooth, fibers and whatever light is in the room, so
+every layer that was *faking* those comes off — the desk, the three
+noise layers, the raking light, the deckle, the torn edge, the tape and
+the coffee ring. The sheet squares up to true, because the tilt was
+there to say a hand put it down and now a hand is holding it. What
+survives is only the marks: the type with its displacement filters
+(the one thing paper can't supply), the ruling, and your ink.
+
+Two details that aren't obvious. The ruled lines and the red margin are
+painted as backgrounds, which browsers strip from print by default, so
+they're asked for by name with `print-color-adjust: exact` — the ruling
+is the sheet, not decoration. And the reveal animations start at
+`opacity: 0` until they scroll into view, which on a fresh load means a
+print job would produce a beautifully textured blank page; print forces
+every `.write`, `.fade` and `.draw` to its finished state.
+
+Known limit: ink lives on one canvas sized to the whole sheet, and a
+canvas won't split across a page break, so a drawing that spans several
+printed pages gets cut at the first one.
 
 ## Using it
 
 Pick a nib from the tray, bottom right — or press `1`–`5`, `Esc` to stop.
 `⌘Z` / `⇧⌘Z` walk the history, applied to whichever surface you last drew
-on (falling through to the other one when that one's empty). In reading
+on (falling through to the other one when that one's empty) — and that
+history reaches back over `clear`, so the button is recoverable rather
+than final. In reading
 mode the page-wide canvas is `pointer-events: none` so text stays
 selectable; the scratch pad is always live. Everything you draw lives on
 a canvas sized to the whole sheet, so it scrolls with the page, survives
@@ -141,10 +178,10 @@ a sliver of edge showing, grab the bottom corner to fold it back. Built
 from `clip-path` plus a mirrored shaded triangle rather than a rasterized
 3D flip, so the blend modes and SVG filters survive intact.
 
-Also on the list: pointer-tracked raking light, a print stylesheet, a
-paper-stock switcher (legal pad / graph / kraft), self-hosted fonts, and
-a hand-authored SVG wordmark that genuinely writes itself instead of
-being a font revealed by a mask.
+Also on the list: pointer-tracked raking light, a paper-stock switcher
+(legal pad / graph / kraft), self-hosted fonts, an export so a drawing
+can leave the browser it was made in, and a hand-authored SVG wordmark
+that genuinely writes itself instead of being a font revealed by a mask.
 
 ## Contributing
 
