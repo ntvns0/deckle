@@ -1,0 +1,30 @@
+{
+  "project_id": "PRJ-036",
+  "slug": "deckle",
+  "title": "Deckle",
+  "summary": "A dependency-free writing surface that behaves like a finite sheet of handmade paper, complete with tactile ink and drawing tools.",
+  "description": "A four-file browser experiment in paper texture, paginated writing, drawing, print behavior, and deliberately physical interaction design.",
+  "tech_stack": ["HTML", "CSS", "Canvas", "JavaScript", "SVG Filters", "Node.js"],
+  "status": "active",
+  "category": "Creative Tools",
+  "featured": true,
+  "order": 36,
+  "highlights": [
+    "Builds paper grain, fibers, flecks, ink, and deckled edges without image dependencies.",
+    "Supports pens, pencil, highlighting, erasing, undo/redo, persistence, and print output.",
+    "Runs directly from static files with an optional zero-dependency live-reload server."
+  ],
+  "run_commands": ["env PORT=8788 node dev.js"],
+  "preview_dir": ".",
+  "preview_entry": "index.html",
+  "services": [
+    {
+      "slug": "web",
+      "label": "Deckle live-reload server",
+      "command": "env PORT=8788 node dev.js",
+      "open_url": "http://127.0.0.1:8788",
+      "health_url": "http://127.0.0.1:8788",
+      "description": "Serves the paper surface with live reload on a port reserved by the portfolio."
+    }
+  ]
+}

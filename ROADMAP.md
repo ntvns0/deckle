@@ -74,7 +74,61 @@ printed pages is cut at the first.
 
 ## In progress
 
-Nothing is mid-flight right now.
+### The crinkle
+
+A creased sheet, dealt fresh on every load. Two parts. The **crumple
+field** is one more procedural texture in `:root` — long-wavelength
+turbulence with the contrast pushed, so it reads as low hills rather
+than grey mush. The **creases** are elements: a linear-gradient with a
+dark flank hard against a lit one, chewed by a new `#f-crease` filter
+that displaces on one axis only, so the line wanders without stopping
+being a line.
+
+The load-bearing decision is that `.sheet__crinkle` blends
+**soft-light**, not multiply like the rest of the substrate. Multiply
+can only take light away, and half of a crease is the highlight — the
+lit flank is what makes it read as a ridge instead of a smudge.
+
+`page.js` deals 3–4 creases, alternating near-vertical and
+near-horizontal so they cross like a sheet that was quartered; a free
+diagonal reads as a scratch, not a fold. Length is
+`max(220vmax, 260%)` so a crease crosses the sheet at any angle in
+either orientation, and the *host* carries the edge fade in absolute
+px — an earlier proportional mask on each crease made folds stop short
+of the paper edge, which a real fold doesn't do.
+
+Looked at: the creases land well and the type stays legible under a
+lit flank. The crumple field did *not* survive under the grain and
+fiber layers — it was noise on noise at `.5`, and is now `.85`.
+
+### The raking light
+
+`.sheet__light` was a fixed 148° gradient. It now takes `--light-a`
+and a `--burn-x/y` for the edge falloff, and `page.js` turns them to
+follow the pointer — the lamp is placed *opposite* the cursor, so the
+sheet reads as tilting to face your hand.
+
+The part worth having built: the creases follow the same light.
+Each one records the screen-space direction its lit flank faces, and
+per frame compares it against the light. The sign of that dot product
+flips the crease (`scaleX(-1)`, swapping which flank is dark) and its
+magnitude drives the shading strength — a fold lit straight down its
+length is nearly invisible, which is precisely the moment the swap
+happens, so it's never caught in the act. Without this the creases
+were painted-on shadow; with it they're geometry.
+
+The pointer handler only records a target. A rAF loop eases 12% of
+the way per frame (~53 frames to settle) and parks itself, so cost is
+one frame's work regardless of how chatty the device is, and the lag
+is what gives the sheet weight. Reduced-motion and coarse-pointer
+visitors keep the fixed CSS angle.
+
+**Still to do before both move to Done:** verified numerically in a
+browser — the angle eases 141.5° → 39.8° for a pointer at top right,
+with the gradient's bright end correctly on the lamp side, and the
+crease flips track it. Not yet watched in live motion; the preview
+tab here can't run rAF, so the *feel* of the easing constant is
+unconfirmed. Nothing is committed.
 
 When you start something, move it here with a line on what you're
 actually doing — not the title, the approach — so an interrupted piece

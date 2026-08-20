@@ -16,6 +16,141 @@
     el.style.transform = "rotate(" + (base + jitter).toFixed(2) + "deg)";
   });
 
+  /* ── fold the sheet ──────────────────────────────────────────
+     A crumple field is in the stylesheet; the hard creases are dealt
+     here so no two loads are folded the same way. Paper folds along
+     its own geometry — near-vertical or near-horizontal, wandering a
+     few degrees off true — so the angle is picked per axis rather
+     than anywhere on the circle. A stray diagonal reads as a scratch,
+     not a fold.
+
+     The count is deliberately small. Every crease is a bright line
+     laid over the type, and four is already at the edge of legible. */
+  var creases = [];              /* handed to the raking light below */
+
+  (function crinkle() {
+    var host = document.querySelector(".sheet__crinkle");
+    if (!host) return;
+
+    var n = 3 + Math.floor(Math.random() * 2);       /* 3 or 4 */
+    var vertical = Math.random() < 0.5;              /* alternates below */
+    var frag = document.createDocumentFragment();
+
+    for (var i = 0; i < n; i++) {
+      var el = document.createElement("i");
+      el.className = "crease";
+
+      /* Alternate the axis so folds cross each other the way they do
+         in a sheet that was quartered, rather than stacking parallel. */
+      var isVert = vertical === (i % 2 === 0);
+      var base = isVert ? 0 : 90;
+      var angle = base + (Math.random() - 0.5) * 7;
+
+      /* Keep creases off the outer eighth: a fold that lands on the
+         deckled edge fights the displacement filter there. */
+      var pos = 14 + Math.random() * 72;
+
+      el.style.setProperty("--a", angle.toFixed(2) + "deg");
+      el.style.setProperty("--x", isVert ? pos.toFixed(1) + "%" : "50%");
+      el.style.setProperty("--y", isVert ? "50%" : pos.toFixed(1) + "%");
+      el.style.setProperty("--w", (16 + Math.random() * 22).toFixed(0) + "px");
+      el.style.setProperty("--o", (0.34 + Math.random() * 0.3).toFixed(2));
+
+      /* The gradient runs across the strip's width, so the lit flank
+         faces the strip's local +x. Rotated by `angle`, in screen
+         coordinates (y down), that direction is (cos a, -sin a).
+         The raking light compares it against the light direction. */
+      var rad = angle * Math.PI / 180;
+      creases.push({ el: el, nx: Math.cos(rad), ny: -Math.sin(rad) });
+
+      frag.appendChild(el);
+    }
+
+    host.appendChild(frag);
+  })();
+
+
+  /* ── the raking light ────────────────────────────────────────
+     One lamp, off the upper left, and the sheet tilts under it as
+     the pointer moves. Two things follow the light: the highlight
+     gradient on `.sheet__light`, and each crease, which has to
+     decide which of its two flanks is facing the source.
+
+     Nothing here runs on the pointer event itself — the handler only
+     records a target, and a rAF loop eases toward it. That keeps the
+     work to one frame's worth no matter how chatty the device is,
+     and the easing is what gives the sheet its weight. */
+  (function rakingLight() {
+    var lightEl = document.querySelector(".sheet__light");
+    var sheetEl = document.getElementById("sheet");
+    if (!lightEl || !sheetEl) return;
+
+    /* A touch screen has no hovering pointer to track, and a tilting
+       light is exactly the kind of ambient motion reduced-motion is
+       asking about. Both keep the fixed angle baked into the CSS. */
+    if (reduced || !window.matchMedia("(pointer: fine)").matches) return;
+
+    /* Where the lamp sits, as an offset from the sheet's centre, in
+       units of half the sheet. Starts at the upper left — the angle
+       the stylesheet has been baked at since the beginning. */
+    var tx = -0.62, ty = -0.78;
+    var cx = tx, cy = ty;
+    var frame = null;
+
+    window.addEventListener("pointermove", function (e) {
+      var r = sheetEl.getBoundingClientRect();
+      if (!r.width || !r.height) return;
+
+      /* The pointer is where you're *looking*, so the lamp is put
+         opposite it: the sheet tilts to face the hand. */
+      tx = -((e.clientX - (r.left + r.width / 2)) / (r.width / 2));
+      ty = -((e.clientY - (r.top + r.height / 2)) / (r.height / 2));
+
+      /* A pointer far down a long page would otherwise drive the
+         light to a grazing angle and flatten everything out. */
+      ty = Math.max(-1.4, Math.min(1.4, ty));
+
+      if (!frame) frame = requestAnimationFrame(step);
+    }, { passive: true });
+
+    function step() {
+      frame = null;
+
+      cx += (tx - cx) * 0.12;
+      cy += (ty - cy) * 0.12;
+
+      var len = Math.hypot(cx, cy) || 1;
+      var lx = cx / len, ly = cy / len;
+
+      /* CSS gradient angles run clockwise from "to top", and the
+         gradient has to point away from the lamp: bright end first. */
+      var deg = Math.atan2(-lx, ly) * 180 / Math.PI;
+      lightEl.style.setProperty("--light-a", deg.toFixed(1) + "deg");
+
+      /* The edge burn drifts the other way, so the far corner from
+         the lamp is the one that falls off. */
+      lightEl.style.setProperty("--burn-x", (50 - lx * 14).toFixed(1) + "%");
+      lightEl.style.setProperty("--burn-y", (44 - ly * 12).toFixed(1) + "%");
+
+      creases.forEach(function (c) {
+        var dot = c.nx * lx + c.ny * ly;
+        c.el.style.setProperty("--flip", dot < 0 ? "-1" : "1");
+        /* Square-on light shades hardest; light running down the
+           fold barely shades at all. The floor has to stay low —
+           it's the cover the flank swap hides behind, and at 0.3 you
+           can see the highlight jump sides. */
+        c.el.style.setProperty("--strength", (0.12 + 0.88 * Math.abs(dot)).toFixed(3));
+      });
+
+      /* Keep easing until it has settled, then stop burning frames. */
+      if (Math.abs(tx - cx) > 0.002 || Math.abs(ty - cy) > 0.002) {
+        frame = requestAnimationFrame(step);
+      }
+    }
+
+    step();
+  })();
+
   /* ── prime the self-drawing SVG strokes ──────────────────────
      dasharray/dashoffset both need the true path length, which only
      the browser can tell us. */

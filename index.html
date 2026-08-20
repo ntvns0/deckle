@@ -55,6 +55,15 @@
                          xChannelSelector="R" yChannelSelector="G"/>
     </filter>
 
+    <!-- A crease wanders. Displacement along one axis only, so the
+         line stays a line but stops being a ruler's. -->
+    <filter id="f-crease" x="-40%" y="-4%" width="180%" height="108%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.004 0.009"
+                    numOctaves="3" seed="31" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="11"
+                         xChannelSelector="R" yChannelSelector="R"/>
+    </filter>
+
     <!-- A torn bottom edge: violent low-frequency displacement. -->
     <filter id="f-tear" x="-6%" y="-40%" width="112%" height="180%">
       <feTurbulence type="fractalNoise" baseFrequency="0.02 0.5"
@@ -74,6 +83,8 @@
   <div class="sheet__grain"  aria-hidden="true"></div>
   <div class="sheet__fibers" aria-hidden="true"></div>
   <div class="sheet__light"  aria-hidden="true"></div>
+  <!-- Creases are dealt by page.js, so no two loads are folded alike -->
+  <div class="sheet__crinkle" aria-hidden="true"></div>
   <div class="sheet__rules"  aria-hidden="true"></div>
   <div class="sheet__margin" aria-hidden="true"></div>
 

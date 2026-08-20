@@ -33,6 +33,11 @@
 
   --tex-fiber: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.004 0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23f)'/%3E%3C/svg%3E");
 
+  /* Broad, soft blotches — the low hills a sheet keeps after it has
+     been balled up and flattened again. Long wavelength, and the
+     contrast is pushed so the field isn't a uniform grey mush. */
+  --tex-crumple: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.006 0.005' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncR type='linear' slope='2.2' intercept='-0.6'/%3E%3CfeFuncG type='linear' slope='2.2' intercept='-0.6'/%3E%3CfeFuncB type='linear' slope='2.2' intercept='-0.6'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='700' height='700' filter='url(%23c)'/%3E%3C/svg%3E");
+
   --tex-fleck: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.02' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='discrete' tableValues='0 0 0 0 0 0 0 0 0 1'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23s)'/%3E%3C/svg%3E");
 }
 
@@ -122,13 +127,93 @@ body {
   position: absolute;
   inset: 4px;
   pointer-events: none;
+  /* --light-a is the raking angle; page.js turns it to follow the
+     pointer, so the sheet reads as a surface being tilted under a
+     fixed lamp rather than a swatch with a gradient on it. The
+     defaults here are the old fixed values, and they are what a
+     no-pointer or reduced-motion visitor keeps. */
   background:
-    linear-gradient(148deg,
+    linear-gradient(var(--light-a, 148deg),
       rgba(255,255,255,.55) 0%,
       rgba(255,255,255,.12) 26%,
       rgba(255,255,255,0)   48%),
-    radial-gradient(115% 80% at 50% 44%,
+    radial-gradient(115% 80% at var(--burn-x, 50%) var(--burn-y, 44%),
       rgba(0,0,0,0) 52%, rgba(88,72,48,.13) 100%);
+  /* No CSS transition here on purpose: interpolating a two-layer
+     gradient every frame is the expensive way to do this. page.js
+     eases the numbers instead, so the light lags the hand — paper is
+     heavy, and nobody tilts a sheet at 60fps. */
+}
+
+/* ── creases ────────────────────────────────────────────────────
+   A fold isn't a dark line, it's a dark line with a lit one beside
+   it — one flank of the ridge turned away from the light, the other
+   turned into it. That's why this layer is soft-light and not
+   multiply like everything else on the sheet: multiply can only
+   take light away, and half a crease is the highlight.
+
+   Everything here is static geometry. The creases themselves are
+   dealt at load by page.js, which sets --x/--y/--a/--w/--o. */
+.sheet__crinkle {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;             /* creases run long and get trimmed */
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+  opacity: .62;
+  /* A fold runs to the edge, but the edge itself is deckled and
+     wandering, so every crease is softened over the last few
+     millimetres rather than stopping on the clip rectangle. */
+  -webkit-mask-image:
+    linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%),
+    linear-gradient(to right,  transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+          mask-image:
+    linear-gradient(to bottom, transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%),
+    linear-gradient(to right,  transparent 0, #000 26px, #000 calc(100% - 26px), transparent 100%);
+  -webkit-mask-composite: source-in;
+          mask-composite: intersect;
+}
+
+/* The flattened-out crumple field, under the hard folds. */
+.sheet__crinkle::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  background-image: var(--tex-crumple);
+  background-size: 760px 760px;
+  /* Under the grain and fiber layers this reads as nothing at all
+     below about .8 — it was noise on noise. Either it's visible or
+     it shouldn't be paying for a compositing layer. */
+  opacity: .85;
+}
+
+.crease {
+  position: absolute;
+  left: var(--x, 50%);
+  top: var(--y, 50%);
+  width: var(--w, 26px);
+  /* Long enough to cross the sheet at any angle, in either
+     orientation; the host clips and fades it. */
+  height: max(220vmax, 260%);
+  /* --lit is written by page.js as the light moves: it carries the
+     sign (which flank faces the source, via scaleX) and the strength
+     (how square-on the light hits, via opacity). A fold lit straight
+     down its length has almost no shading, which is what the flank
+     swap hides behind: the crease is at its faintest exactly when it
+     turns over. The transition covers the rest. */
+  opacity: calc(var(--o, .5) * var(--strength, 1));
+  transform: translate(-50%, -50%) rotate(var(--a, 0deg)) scaleX(var(--flip, 1));
+  transition: opacity .18s linear;
+  filter: url(#f-crease);
+  /* dark flank, then the lit one, hard against each other */
+  background: linear-gradient(
+    to right,
+    rgba(58,44,20,0)    0%,
+    rgba(58,44,20,.42) 38%,
+    rgba(44,33,14,.72) 49%,
+    rgba(255,252,242,.92) 54%,
+    rgba(255,252,242,.28) 70%,
+    rgba(255,252,242,0) 100%);
 }
 
 /* ── ruled lines + margin ───────────────────────────────────── */
@@ -700,6 +785,7 @@ body.is-drawing { cursor: crosshair; }
   .sheet__fibers,
   .sheet__light,
   .sheet__tear,
+  .sheet__crinkle,         /* a fresh sheet out of the tray is flat */
   .content::before,        /* the coffee ring */
   .tape,
   .tray,
