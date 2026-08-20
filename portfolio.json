@@ -2,6 +2,7 @@
   "project_id": "PRJ-036",
   "slug": "deckle",
   "title": "Deckle",
+  "repo_url": "https://github.com/ntvns0/deckle",
   "summary": "A dependency-free writing surface that behaves like a finite sheet of handmade paper, complete with tactile ink and drawing tools.",
   "description": "A four-file browser experiment in paper texture, paginated writing, drawing, print behavior, and deliberately physical interaction design.",
   "tech_stack": ["HTML", "CSS", "Canvas", "JavaScript", "SVG Filters", "Node.js"],
