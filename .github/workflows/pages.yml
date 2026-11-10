@@ -1,0 +1,74 @@
+name: Pages
+
+# Publishes the page to https://ntvns0.github.io/deckle/ on every push
+# to main. There is no build: the site is the source files, copied as
+# they are. Only what the page loads is published — not dev.js, the
+# tests, or the repo's own metadata.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time, and never cancel one halfway through.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Run tests
+        run: node --test
+
+  build:
+    name: Collect the site
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Copy the files the page loads
+        run: |
+          mkdir _site
+          cp index.html styles.css ink.js page.js _site/
+          cp icon.svg apple-touch-icon.png og.png _site/
+          cp -r fonts _site/
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Upload the site
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
