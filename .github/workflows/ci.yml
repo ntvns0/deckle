@@ -10,8 +10,8 @@ permissions:
   contents: read
 
 jobs:
-  syntax:
-    name: JavaScript syntax
+  check:
+    name: Syntax and tests
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
@@ -24,3 +24,8 @@ jobs:
 
       - name: Check JavaScript syntax
         run: node --check dev.js && node --check ink.js && node --check page.js
+
+      # Stroke replay, the link format, and the dev server's refusals.
+      # No dependencies: node:test and a fake canvas.
+      - name: Run tests
+        run: node --test

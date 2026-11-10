@@ -5,6 +5,40 @@
    Answer, mostly: grain, a raking light, and ink that multiplies.
    ═══════════════════════════════════════════════════════════════ */
 
+/* ── type ─────────────────────────────────────────────────────────
+   Served from this repo rather than Google Fonts: no third-party
+   request, no visitor IP handed to anyone, and nothing to wait on
+   before the hand-lettering appears. Latin subset only; both faces
+   are SIL OFL, licences alongside in fonts/. */
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 400 700;              /* one variable file covers them all */
+  font-display: swap;
+  src: url("fonts/caveat.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Kalam";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("fonts/kalam-300.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Kalam";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/kalam-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Kalam";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/kalam-700.woff2") format("woff2");
+}
+
 :root {
   /* ── the sheet ── */
   --paper:        #f2ece0;
@@ -79,13 +113,39 @@ body {
    THE SHEET
    ═══════════════════════════════════════════════════════════════ */
 
-.sheet {
-  position: relative;
+/* The pad: every sheet in it is the same size, so they share one
+   grid cell and the tallest (the one with writing on it) sets the
+   height for all of them. */
+.stack {
+  display: grid;
   width: min(880px, 92vw);
   margin: clamp(28px, 6vw, 84px) auto clamp(90px, 12vw, 150px);
+}
+.stack > .sheet { grid-area: 1 / 1; }
+
+.sheet {
+  position: relative;
+  z-index: 2;
   /* Nothing sits at exactly zero degrees. */
   transform: rotate(-0.22deg);
 }
+
+/* Everything that turns with the page. page.js clips it along the
+   fold while a corner is lifted; at rest it's unclipped. */
+.sheet__body {
+  position: relative;
+  height: 100%;
+}
+
+/* The next sheet down. Set a few pixels off and turned the other way,
+   so its edge shows past the first like a pad that's been handled. */
+.sheet--blank {
+  z-index: 1;
+  transform: translate(5px, 8px) rotate(.34deg);
+}
+
+/* A turned page is gone from view and from the tab order. */
+.sheet.is-turned { visibility: hidden; }
 
 /* Base layer: paper colour, chewed edge, and the shadow that sells
    the whole illusion. The deckle filter runs first so the drop
@@ -261,6 +321,11 @@ body {
   mix-blend-mode: multiply;
 }
 body.is-drawing .sheet__ink { pointer-events: auto; touch-action: none; }
+/* The type sits above the ink and would otherwise catch every stroke
+   meant for the sheet. With a nib in hand, marks go through it; the
+   pad and the buttons keep their own. */
+body.is-drawing .content { pointer-events: none; }
+body.is-drawing .content :is(.pad__ink, button) { pointer-events: auto; }
 
 /* A ring left by a mug that was set down and forgotten. */
 .content::before {
@@ -284,6 +349,9 @@ body.is-drawing .sheet__ink { pointer-events: auto; touch-action: none; }
   transform: rotate(-8deg) scaleY(.94);
 }
 
+/* A fresh sheet hasn't had a mug on it yet. */
+.content--blank::before { content: none; }
+
 /* ── the tear along the bottom ──────────────────────────────── */
 .sheet__tear {
   position: absolute;
@@ -293,6 +361,116 @@ body.is-drawing .sheet__ink { pointer-events: auto; touch-action: none; }
   background: var(--paper);
   filter: url(#f-tear) drop-shadow(0 10px 14px rgba(0,0,0,.3));
   pointer-events: none;
+}
+
+
+/* ── the corner, and the fold ───────────────────────────────────
+   The corner is just a hit area; what you see is the flap, which is
+   the back of the sheet beyond the fold, mirrored across it. page.js
+   writes its box, clip and shading every frame of a turn. */
+.flap {
+  position: absolute;          /* page.js sets the box to the flap's outline */
+  z-index: 8;
+  display: none;
+  pointer-events: none;
+  /* The flap's shadow on the page it's lying across. On the wrapper,
+     not the face: a filter on the clipped element would be clipped
+     with it. */
+  filter:
+    drop-shadow(0 1px 1px rgba(40,30,15,.20))
+    drop-shadow(-4px 7px 10px rgba(40,30,15,.24));
+}
+.sheet.is-peeled .flap { display: block; }
+
+.flap__face {
+  position: absolute;
+  inset: 0;
+  background: var(--paper-warm);
+}
+.flap__face::before {                     /* the back has grain too */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: var(--tex-grain), var(--tex-fiber);
+  background-size: 220px 220px, 470px 330px;
+  opacity: .36;
+  mix-blend-mode: multiply;
+}
+.flap__face::after {                      /* the curl, as light */
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--shade, none);
+}
+
+.corner {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  width: 84px;
+  height: 84px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.corner:active { cursor: grabbing; }
+.corner:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: -10px;
+  border-radius: 8px;
+}
+
+/* ── the blank sheet ─────────────────────────────────────────── */
+.content--blank {
+  min-height: 100%;
+}
+.content--blank .stamp {
+  top: clamp(40px, 6vw, 72px);
+  right: clamp(30px, 6vw, 78px);
+}
+
+.blank-hint {
+  margin: calc(var(--rule-h) * 2) 0 0;
+  font-size: 1.5rem;
+  opacity: .42;
+  transition: opacity .4s ease;
+}
+body.is-drawing .blank-hint,
+.sheet--blank.has-ink .blank-hint { opacity: 0; }
+
+.pad-end {
+  position: absolute;
+  right: clamp(30px, 6vw, 78px);
+  bottom: clamp(60px, 8vw, 96px);
+  margin: 0;
+  font-size: 1.3rem;
+  opacity: .5;
+}
+
+/* Pencilled at the top of the page, the way you'd note where a
+   thought continues from. */
+.turn-back {
+  position: absolute;
+  top: clamp(18px, 3vw, 30px);
+  left: clamp(64px, 12%, 132px);
+  padding: 4px 8px;
+  border: 0;
+  background: none;
+  font-size: 1.3rem;
+  opacity: .66;
+  cursor: pointer;
+  mix-blend-mode: multiply;
+  transition: opacity .2s ease;
+}
+.turn-back:hover { opacity: 1; }
+.turn-back:focus-visible {
+  outline: 2px solid var(--highlight);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 
@@ -661,7 +839,8 @@ code {
   line-height: 1;
 }
 
-.tray__btn--clear {
+.tray__btn--clear,
+.tray__btn--word {
   width: auto;
   padding: 0 14px;
   border-radius: 999px;
@@ -669,6 +848,7 @@ code {
   font-size: 1.1rem;
   opacity: .72;
 }
+.tray__btn--word[aria-expanded="true"] { background: rgba(255,255,255,.2); opacity: 1; }
 
 .tray__sep {
   width: 1px;
@@ -694,6 +874,128 @@ code {
 .tray__ico--eraser { background: #e7ded0; }
 
 body.is-drawing { cursor: crosshair; }
+
+/* A phone is narrower than a row of nine pens. Let the tray span the
+   screen and fold onto a second row rather than run off the edge. */
+@media (max-width: 520px) {
+  .tray {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    flex-wrap: wrap;               /* the fallback, on the narrowest phones */
+    justify-content: space-between;
+    gap: 0;
+    padding: 5px;
+    border-radius: 22px;
+  }
+  .tray__btn { width: 34px; height: 34px; }
+  .tray__btn--clear,
+  .tray__btn--word { width: auto; padding: 0 8px; }
+  .tray__sep { display: none; }
+
+  /* Room under the sheet for the tray, so the corner you turn the
+     page by isn't sitting underneath it. */
+  .stack { margin-bottom: 104px; }
+}
+
+/* ── share menu ─────────────────────────────────────────────── */
+.share {
+  position: fixed;
+  right: clamp(14px, 2.4vw, 26px);
+  bottom: calc(clamp(14px, 2.4vw, 26px) + 66px);
+  z-index: 41;
+  display: grid;
+  gap: 2px;
+  min-width: 250px;
+  padding: 8px;
+  border-radius: 16px;
+  background: rgba(30,27,23,.9);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  box-shadow: 0 10px 30px rgba(0,0,0,.45);
+}
+.share[hidden] { display: none; }
+
+.share__item {
+  padding: 7px 14px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #e8e0d0;
+  font-family: "Caveat", cursive;
+  font-size: 1.28rem;
+  text-align: left;
+  cursor: pointer;
+}
+.share__item small {
+  margin-left: .3em;
+  font-family: "Kalam", cursive;
+  font-size: .78rem;
+  opacity: .55;
+}
+.share__item:hover { background: rgba(255,255,255,.11); }
+.share__item:focus-visible { outline: 2px solid #ffe24a; outline-offset: -2px; }
+.share__item[disabled] { opacity: .35; cursor: default; background: none; }
+
+@media (max-width: 520px) {
+  .share { left: 8px; right: 8px; bottom: 60px; min-width: 0; }
+}
+
+/* ── the slip: you're looking at someone else's drawing ─────── */
+.slip {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  z-index: 45;
+  width: min(470px, calc(100vw - 32px));
+  padding: 14px 18px 12px;
+  background: linear-gradient(168deg, #fff08a 0%, #ffe86a 58%, #f5d94e 100%);
+  box-shadow: 0 1px 1px rgba(0,0,0,.16), 0 12px 22px rgba(0,0,0,.28);
+  color: #4a4636;
+  font-family: "Caveat", cursive;
+  transform: translateX(-50%) rotate(-.7deg);
+}
+.slip[hidden] { display: none; }
+.slip__text {
+  margin: 0 0 8px;
+  font-size: 1.3rem;
+  line-height: 1.25;
+}
+.slip__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.slip__actions button {
+  padding: 2px 14px;
+  border: 1.5px solid rgba(74,70,54,.5);
+  border-radius: 999px;
+  background: rgba(255,255,255,.25);
+  color: inherit;
+  font: inherit;
+  font-size: 1.15rem;
+  cursor: pointer;
+}
+.slip__actions button:hover { background: rgba(255,255,255,.55); }
+.slip__actions button:focus-visible { outline: 2px solid #2f3c58; outline-offset: 2px; }
+
+/* ── toast ─────────────────────────────────────────────────── */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(clamp(14px, 2.4vw, 26px) + 70px);
+  z-index: 46;
+  max-width: calc(100vw - 32px);
+  margin: 0;
+  padding: 6px 18px;
+  border-radius: 999px;
+  background: rgba(30,27,23,.9);
+  color: #e8e0d0;
+  font-family: "Caveat", cursive;
+  font-size: 1.25rem;
+  opacity: 0;
+  transform: translateX(-50%);
+  transition: opacity .25s ease;
+  pointer-events: none;
+}
+.toast.is-on { opacity: 1; }
+@media (max-width: 520px) { .toast { bottom: 66px; } }
 
 
 /* ═══════════════════════════════════════════════════════════════
@@ -790,9 +1092,24 @@ body.is-drawing { cursor: crosshair; }
   .tape,
   .tray,
   .pad__hint,
-  .doodle-arrow {
+  .doodle-arrow,
+  .flap,
+  .corner,
+  .turn-back,
+  .blank-hint,
+  .share,
+  .slip,
+  .toast {
     display: none !important;
   }
+
+  /* Only the page you're on. The other keeps its place in the grid,
+     so a blank sheet still prints as tall as the one it sits under. */
+  body:not([data-page="2"]) #sheet-2,
+  body[data-page="2"] #sheet {
+    visibility: hidden;
+  }
+  .sheet__body { clip-path: none !important; }
 
   html, body {
     background: #fff;
@@ -802,11 +1119,11 @@ body.is-drawing { cursor: crosshair; }
 
   /* Square to the page. The tilt was there to say a hand put this
      down; now a hand is holding it. */
-  .sheet {
+  .stack {
     width: 100%;
     margin: 0;
-    transform: none;
   }
+  .sheet { transform: none; }
 
   /* The side padding isn't decoration — it's what keeps the writing
      off the red margin rule, so it has to survive. Only the outer
