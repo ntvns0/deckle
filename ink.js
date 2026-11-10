@@ -70,7 +70,9 @@
     opts = opts || {};
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
-    this.dpr = Math.min(global.devicePixelRatio || 1, 2);
+    /* Capped at 2: a sheet-sized canvas at 3x is a lot of memory for
+       detail nobody can see. Export passes its own scale. */
+    this.dpr = opts.dpr || Math.min(global.devicePixelRatio || 1, 2);
     this.tool = opts.tool || "pen";
     this.enabled = opts.enabled !== false;
     this.onFirstMark = opts.onFirstMark || null;
