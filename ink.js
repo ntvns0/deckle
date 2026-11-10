@@ -219,11 +219,21 @@
     return this.strokes;
   };
 
+  /* Strokes now arrive from files and links as well as from this
+     browser's own storage, so anything that isn't a well-formed
+     stroke is dropped rather than rendered as NaN. */
+  function validStroke(s) {
+    if (!s || !NIBS[s.tool] || !Array.isArray(s.p)) return false;
+    if (s.p.length < 3 || s.p.length % 3 !== 0) return false;
+    for (var i = 0; i < s.p.length; i++) {
+      if (typeof s.p[i] !== "number" || !isFinite(s.p[i])) return false;
+    }
+    return typeof s.seed === "number" && isFinite(s.seed);
+  }
+
   InkSurface.prototype.restore = function (strokes) {
     if (!Array.isArray(strokes)) return;
-    this.strokes = strokes.filter(function (s) {
-      return s && NIBS[s.tool] && Array.isArray(s.p) && s.p.length >= 3;
-    });
+    this.strokes = strokes.filter(validStroke);
     this.undone = [];
     this.cleared = [];
     this.redraw();
@@ -538,5 +548,222 @@
     wc.restore();
   };
 
+  /* ═══════════════════════════════════════════════════════════
+     PACKING — a drawing small enough to put in a link
+     ───────────────────────────────────────────────────────────
+     JSON spends ~8 characters on every coordinate. Points are
+     already stored as multiples of 1e-5 of the sheet width, so they
+     pack exactly as integers; consecutive samples sit close
+     together, so the gaps between them are small, and a small
+     integer is one or two bytes as a varint. Deflate takes it the
+     rest of the way. Being exact matters: a pencil stroke replays
+     its scatter from the seed and the points, so a lossy link would
+     re-shuffle the graphite.
+
+     Layout, all integers as LEB128 varints:
+       version (1), surface count,
+       per surface: stroke count,
+         per stroke: tool, seed, point count,
+           then x, y, w for the first point and the change in each
+           for every point after it, zigzag-signed.
+
+     A link is anyone's input, so decoding checks every count
+     against a limit before it allocates anything for it. */
+
+  var FORMAT = 1;
+  /* Indices into this list are written into links, so it only ever
+     grows at the end. */
+  var TOOLS = ["pen", "pencil", "marker", "eraser"];
+  var SCALE = 1e5;
+  var LIMITS = {
+    surfaces: 16,
+    strokes: 20000,
+    points: 200000,       /* per stroke */
+    total: 2000000,       /* points across the whole drawing */
+    bytes: 16 * 1024 * 1024
+  };
+
+  function Writer() { this.buf = new Uint8Array(1024); this.n = 0; }
+  Writer.prototype.byte = function (b) {
+    if (this.n === this.buf.length) {
+      var next = new Uint8Array(this.buf.length * 2);
+      next.set(this.buf);
+      this.buf = next;
+    }
+    this.buf[this.n++] = b;
+  };
+  /* Arithmetic rather than bit ops, which would truncate at 2^31. */
+  Writer.prototype.uint = function (v) {
+    while (v >= 128) {
+      this.byte((v % 128) + 128);
+      v = Math.floor(v / 128);
+    }
+    this.byte(v);
+  };
+  Writer.prototype.sint = function (v) {
+    this.uint(v >= 0 ? v * 2 : -v * 2 - 1);
+  };
+  Writer.prototype.bytes = function () { return this.buf.slice(0, this.n); };
+
+  function Reader(bytes) { this.buf = bytes; this.i = 0; }
+  Reader.prototype.uint = function () {
+    var v = 0, mul = 1;
+    for (var k = 0; k < 8; k++) {
+      if (this.i >= this.buf.length) throw new Error("truncated");
+      var b = this.buf[this.i++];
+      v += (b & 127) * mul;
+      if (b < 128) return v;
+      mul *= 128;
+    }
+    throw new Error("varint too long");
+  };
+  Reader.prototype.sint = function () {
+    var u = this.uint();
+    return u % 2 ? -(u + 1) / 2 : u / 2;
+  };
+  Reader.prototype.upTo = function (max, what) {
+    var v = this.uint();
+    if (v > max) throw new Error("too many " + what);
+    return v;
+  };
+
+  /* surfaces: an array of stroke lists, in a fixed order the caller
+     owns (sheet, pad, …). */
+  function encode(surfaces) {
+    var w = new Writer();
+    w.uint(FORMAT);
+    w.uint(surfaces.length);
+    surfaces.forEach(function (strokes) {
+      strokes = (strokes || []).filter(validStroke);
+      w.uint(strokes.length);
+      strokes.forEach(function (s) {
+        w.uint(TOOLS.indexOf(s.tool));
+        w.uint(s.seed >>> 0);
+        var p = s.p;
+        w.uint(p.length / 3);
+        var px = 0, py = 0, pw = 0;
+        for (var i = 0; i < p.length; i += 3) {
+          var x = Math.round(p[i] * SCALE);
+          var y = Math.round(p[i + 1] * SCALE);
+          var wd = Math.round(p[i + 2] * SCALE);
+          w.sint(x - px); w.sint(y - py); w.sint(wd - pw);
+          px = x; py = y; pw = wd;
+        }
+      });
+    });
+    return w.bytes();
+  }
+
+  function decode(bytes) {
+    var r = new Reader(bytes);
+    if (r.uint() !== FORMAT) throw new Error("unknown format");
+    var nSurf = r.upTo(LIMITS.surfaces, "surfaces");
+    var total = 0;
+    var out = [];
+    for (var s = 0; s < nSurf; s++) {
+      var nStrokes = r.upTo(LIMITS.strokes, "strokes");
+      var strokes = [];
+      for (var k = 0; k < nStrokes; k++) {
+        var tool = TOOLS[r.uint()];
+        if (!tool) throw new Error("unknown tool");
+        var seed = r.uint();
+        if (seed > 0xFFFFFFFF) throw new Error("bad seed");
+        var n = r.upTo(LIMITS.points, "points");
+        if (n < 1) throw new Error("empty stroke");
+        total += n;
+        if (total > LIMITS.total) throw new Error("drawing too large");
+        /* Every point costs at least three bytes, so a count the
+           remaining input can't possibly hold is a lie. */
+        if (n * 3 > bytes.length - r.i) throw new Error("truncated");
+        var p = new Array(n * 3);
+        var x = 0, y = 0, wd = 0;
+        for (var i = 0; i < n * 3; i += 3) {
+          x += r.sint(); y += r.sint(); wd += r.sint();
+          p[i] = x / SCALE; p[i + 1] = y / SCALE; p[i + 2] = wd / SCALE;
+        }
+        strokes.push({ tool: tool, seed: seed, p: p });
+      }
+      out.push(strokes);
+    }
+    if (r.i !== bytes.length) throw new Error("trailing bytes");
+    return out;
+  }
+
+  function toBase64Url(bytes) {
+    var bin = "";
+    for (var i = 0; i < bytes.length; i += 0x8000) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  function fromBase64Url(str) {
+    if (!/^[A-Za-z0-9_-]*$/.test(str)) throw new Error("not base64url");
+    var bin = atob(str.replace(/-/g, "+").replace(/_/g, "/"));
+    var out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+
+  /* Run bytes through a (de)compression stream. Output is read in
+     chunks so a tiny link that inflates to gigabytes is stopped at
+     the limit instead of being buffered whole. */
+  function pipe(bytes, stream, limit) {
+    var writer = stream.writable.getWriter();
+    writer.write(bytes).catch(function () {});
+    writer.close().catch(function () {});
+    var reader = stream.readable.getReader();
+    var chunks = [], size = 0;
+    function pump() {
+      return reader.read().then(function (res) {
+        if (res.done) {
+          var out = new Uint8Array(size), o = 0;
+          chunks.forEach(function (c) { out.set(c, o); o += c.length; });
+          return out;
+        }
+        size += res.value.length;
+        if (size > limit) {
+          reader.cancel().catch(function () {});
+          throw new Error("drawing too large");
+        }
+        chunks.push(res.value);
+        return pump();
+      });
+    }
+    return pump();
+  }
+
+  var canZip = typeof CompressionStream === "function" &&
+               typeof DecompressionStream === "function";
+
+  /* Drawing → the text after "#ink=". The first character says how
+     the rest is stored: "z" deflated, "r" raw, for a browser that
+     has no CompressionStream. */
+  function pack(surfaces) {
+    var bytes = encode(surfaces);
+    if (!canZip) return Promise.resolve("r" + toBase64Url(bytes));
+    return pipe(bytes, new CompressionStream("deflate-raw"), Infinity)
+      .then(function (z) { return "z" + toBase64Url(z); });
+  }
+
+  function unpack(text) {
+    return Promise.resolve().then(function () {
+      var kind = text.charAt(0);
+      var bytes = fromBase64Url(text.slice(1));
+      if (kind === "r") return bytes;
+      if (kind === "z" && canZip) {
+        return pipe(bytes, new DecompressionStream("deflate-raw"), LIMITS.bytes);
+      }
+      throw new Error("unreadable link");
+    }).then(decode);
+  }
+
+  InkSurface.TOOLS = TOOLS.slice();
+  InkSurface.encode = encode;
+  InkSurface.decode = decode;
+  InkSurface.pack = pack;
+  InkSurface.unpack = unpack;
+  InkSurface.isStroke = validStroke;
+
   global.InkSurface = InkSurface;
-})(window);
+})(typeof window !== "undefined" ? window : globalThis);
