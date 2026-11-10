@@ -6,9 +6,11 @@
 <title>Deckle — a website that thinks it's a page</title>
 <meta name="description" content="Deckle: an experiment in rendering real paper and real ink in a browser. Named for the ragged edge of a hand-made sheet.">
 
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400..700&family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+<!-- The faces the first screen needs. Kalam 700 only shows up in
+     emphasis further down, so it's left to load on demand. -->
+<link rel="preload" href="fonts/caveat.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/kalam-300.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/kalam-400.woff2" as="font" type="font/woff2" crossorigin>
 
 <link rel="stylesheet" href="styles.css">
 </head>

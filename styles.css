@@ -5,6 +5,40 @@
    Answer, mostly: grain, a raking light, and ink that multiplies.
    ═══════════════════════════════════════════════════════════════ */
 
+/* ── type ─────────────────────────────────────────────────────────
+   Served from this repo rather than Google Fonts: no third-party
+   request, no visitor IP handed to anyone, and nothing to wait on
+   before the hand-lettering appears. Latin subset only; both faces
+   are SIL OFL, licences alongside in fonts/. */
+@font-face {
+  font-family: "Caveat";
+  font-style: normal;
+  font-weight: 400 700;              /* one variable file covers them all */
+  font-display: swap;
+  src: url("fonts/caveat.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Kalam";
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url("fonts/kalam-300.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Kalam";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("fonts/kalam-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Kalam";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("fonts/kalam-700.woff2") format("woff2");
+}
+
 :root {
   /* ── the sheet ── */
   --paper:        #f2ece0;
