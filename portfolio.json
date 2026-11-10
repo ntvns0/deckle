@@ -3,7 +3,8 @@
   "slug": "deckle",
   "title": "Deckle",
   "repo_url": "https://github.com/ntvns0/deckle",
-  "summary": "A dependency-free writing surface that behaves like a finite sheet of handmade paper, complete with tactile ink and drawing tools.",
+  "live_url": "https://ntvns0.github.io/deckle/",
+  "summary": "A dependency-free writing surface that behaves like a pad of handmade paper, with tactile ink, a corner you can turn, and drawings you can share as a link.",
   "description": "A four-file browser experiment in paper texture, paginated writing, drawing, print behavior, and deliberately physical interaction design.",
   "tech_stack": ["HTML", "CSS", "Canvas", "JavaScript", "SVG Filters", "Node.js"],
   "status": "active",
@@ -12,8 +13,9 @@
   "order": 36,
   "highlights": [
     "Builds paper grain, fibers, flecks, ink, and deckled edges without image dependencies.",
-    "Supports pens, pencil, highlighting, erasing, undo/redo, persistence, and print output.",
-    "Runs directly from static files with an optional zero-dependency live-reload server."
+    "Turns the page with a draggable corner peel built from clip-paths, so every blend mode and filter survives the fold.",
+    "Supports pens, pencil, highlighting, erasing, undo/redo, persistence, print output, and sharing a drawing as a link, PNG, or file.",
+    "Runs directly from static files, published to GitHub Pages, with a zero-dependency live-reload server and node:test suite."
   ],
   "run_commands": ["env PORT=8788 node dev.js"],
   "preview_dir": ".",

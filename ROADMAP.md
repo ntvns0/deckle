@@ -3,7 +3,14 @@
 Where Deckle is. Three sections: what's **done**, what's **in
 progress**, and what's **next**. An item moves down this file, never
 sideways — if something is listed as done it is in `main` and has been
-looked at in a browser, not just written.
+looked at in a browser, not just written. "Looked at" means real input
+in a real browser: see the sheet-drawing bug below for what a synthetic
+event fired straight at an element can hide.
+
+Commits are named by hash where they're in `main`'s history, and by
+subject where they arrived on a branch — a squash merge rewrites
+hashes, which is how this file once ended up citing commits that
+didn't exist.
 
 The organising principle for everything below is the one in the
 [README](README.md): this is a page, not a scroll, and every feature has
@@ -14,7 +21,7 @@ constraint kills more ideas than taste does.
 
 ## Done
 
-### The sheet — `a5c975e`
+### The sheet — `02ef35d`
 
 The original build. Three stacked noise layers as the substrate, a
 deckled edge and torn bottom from `feDisplacementMap`, glyphs pushed off
@@ -22,7 +29,7 @@ their outlines so no two `e`s match, everything rotated a fraction of a
 degree, and baselines locked to the ruled-line pitch. All of it
 multiplying into the fibers rather than sitting on top of them.
 
-### The ink engine — `a5c975e`
+### The ink engine — `02ef35d`
 
 ~300 dependency-free lines. Strokes are chains of filled quads whose
 width tracks pointer velocity, with real stylus pressure overriding it
@@ -35,7 +42,7 @@ Strokes are stored as point data rather than pixels, which is the
 decision the rest of the project leans on — it's what makes undo,
 persistence, and crisp resizing possible at all.
 
-### Undoable clear — `8bd77b0`
+### Undoable clear — `a58f4d6`
 
 `clear()` used to empty the stroke list *and* the redo stack and then
 immediately persist, so one stray click destroyed a drawing with no path
@@ -53,7 +60,7 @@ clear → 0 → undo → 5536 again, then undo → 2768, redo → 5536.
 **Known limit:** the snapshot lives in memory, not `localStorage`. A
 clear you don't undo before reloading is permanent.
 
-### Print stylesheet — `8bd77b0`
+### Print stylesheet — `a58f4d6`
 
 The premise is that a website can be a page, and `⌘P` is where that
 claim gets tested. The rules invert the argument instead of preserving
@@ -70,157 +77,152 @@ state.
 canvas won't split across a page break, so a drawing spanning several
 printed pages is cut at the first.
 
+### The crinkle and the raking light — `32211e8`
+
+A creased sheet, dealt fresh on every load: a crumple field in `:root`
+plus 3–4 crease elements that alternate near-vertical and
+near-horizontal, so they cross like a quartered sheet. The creases
+blend **soft-light**, not multiply — half of a crease is the highlight,
+and multiply can only take light away.
+
+The light follows the pointer, placed opposite it so the sheet tilts to
+face your hand, eased 12% per frame in a rAF loop that parks itself
+when settled. Each crease compares its lit flank's direction against
+the light every frame and flips when the dot product changes sign, at
+the moment it's faintest, so it's never caught swapping.
+
+This shipped in `32211e8` while this file still listed it as
+uncommitted. Still open: nobody has judged the *feel* of the 12%
+easing constant in live motion.
+
+### A dev server that's safe on the network — *Harden the dev server and open it to the network*
+
+A malformed escape (`/%E0`) crashed it; it served `.git/config` to
+anyone who asked; and its containment check was a bare prefix match
+that let a sibling directory through. Fixed, with a test for each, and
+it now listens on `0.0.0.0` and prints its LAN and Tailscale URLs so
+the page opens on a phone. `HOST=127.0.0.1` keeps it local.
+
+### Self-hosted fonts — *Self-host Caveat and Kalam*
+
+The sticky note on the page said "zero dependencies" over a
+render-blocking request to Google Fonts. Latin subsets now live in
+`fonts/` with their OFL licences, ~140 KB, the first screen's three
+faces preloaded.
+
+### Stroke replay under test — *Pin stroke replay with tests…*
+
+`node --test`, no framework: the real pointer handlers driven against
+a fake canvas that records every draw call. Undo/redo, clear/undo and
+save/restore replay identically, and a fixed pencil stroke's scatter is
+pinned to a hash. Checked the way it's meant to fail: moving one
+`rnd()` call in `_graphite` fails the test. CI runs it.
+
+### Drawing on the sheet actually works — *Turn the page, fix sheet drawing…*
+
+It never did. `.content` (the type) sits above the ink canvas and
+caught every stroke, so only the scratch pad ever took marks — the
+earlier "verified" checks dispatched events at the canvas directly.
+Found by driving headless Chrome with real mouse input. With a nib in
+hand, the type now passes strokes through.
+
+### The corner-peel page turn — *Turn the page, fix sheet drawing…*
+
+The identity feature, done the way this file planned it: `clip-path`
+on the sheet plus a mirrored, shaded flap, no rasterized 3D flip, so
+the multiply stack and filters survive. Two same-size sheets share one
+grid cell; the corner rests as a dog-ear, lifts on hover, follows a
+drag, completes past halfway or on a throw, and turns on click or
+Enter. Paper doesn't stretch, so the corner is constrained to a
+sheet-width from the bottom-left. 60fps on an integrated GPU (software
+rendering in headless Chrome manages ~30 — the clip re-rasterizes).
+
+The `clip-path` didn't fight the multiply stack after all. What did
+bite: a reflection `transform` on a sheet-sized flap counts toward
+scroll height, and the page grew a sheet of empty desk. And releasing a
+drag fires `pointerleave`, whose hover handler cancelled the turn the
+release had just started.
+
+### Export and share — *Turn the page, fix sheet drawing…*
+
+Roadmap item #1, collected. A **link** carries the whole drawing in
+the URL fragment (delta-encoded varints, deflated; exact, so pencil
+replays identically; decoding bounded against hostile input). A
+**PNG** redraws your ink at 2x on the sheet's paper, ruling and margin,
+cropped to the ink. A **JSON** file downloads, opens from the menu, or
+drops onto the page. Anything foreign opens as someone else's drawing
+and saves nothing over yours until you keep it.
+
+The UI question this file raised — whether the tray had room — was
+answered with one word-button, **share**, opening a menu above it. On
+phones the tray now fits one row and the sheet leaves room for it.
+
+### Published, with a preview card — *Publish to GitHub Pages…*
+
+A Pages workflow runs the tests and deploys the files the page loads to
+<https://ntvns0.github.io/deckle/>. Favicon, `theme-color`, and an Open
+Graph image rendered from the page itself.
+
 ---
 
 ## In progress
 
-### The crinkle
-
-A creased sheet, dealt fresh on every load. Two parts. The **crumple
-field** is one more procedural texture in `:root` — long-wavelength
-turbulence with the contrast pushed, so it reads as low hills rather
-than grey mush. The **creases** are elements: a linear-gradient with a
-dark flank hard against a lit one, chewed by a new `#f-crease` filter
-that displaces on one axis only, so the line wanders without stopping
-being a line.
-
-The load-bearing decision is that `.sheet__crinkle` blends
-**soft-light**, not multiply like the rest of the substrate. Multiply
-can only take light away, and half of a crease is the highlight — the
-lit flank is what makes it read as a ridge instead of a smudge.
-
-`page.js` deals 3–4 creases, alternating near-vertical and
-near-horizontal so they cross like a sheet that was quartered; a free
-diagonal reads as a scratch, not a fold. Length is
-`max(220vmax, 260%)` so a crease crosses the sheet at any angle in
-either orientation, and the *host* carries the edge fade in absolute
-px — an earlier proportional mask on each crease made folds stop short
-of the paper edge, which a real fold doesn't do.
-
-Looked at: the creases land well and the type stays legible under a
-lit flank. The crumple field did *not* survive under the grain and
-fiber layers — it was noise on noise at `.5`, and is now `.85`.
-
-### The raking light
-
-`.sheet__light` was a fixed 148° gradient. It now takes `--light-a`
-and a `--burn-x/y` for the edge falloff, and `page.js` turns them to
-follow the pointer — the lamp is placed *opposite* the cursor, so the
-sheet reads as tilting to face your hand.
-
-The part worth having built: the creases follow the same light.
-Each one records the screen-space direction its lit flank faces, and
-per frame compares it against the light. The sign of that dot product
-flips the crease (`scaleX(-1)`, swapping which flank is dark) and its
-magnitude drives the shading strength — a fold lit straight down its
-length is nearly invisible, which is precisely the moment the swap
-happens, so it's never caught in the act. Without this the creases
-were painted-on shadow; with it they're geometry.
-
-The pointer handler only records a target. A rAF loop eases 12% of
-the way per frame (~53 frames to settle) and parks itself, so cost is
-one frame's work regardless of how chatty the device is, and the lag
-is what gives the sheet weight. Reduced-motion and coarse-pointer
-visitors keep the fixed CSS angle.
-
-**Still to do before both move to Done:** verified numerically in a
-browser — the angle eases 141.5° → 39.8° for a pointer at top right,
-with the gradient's bright end correctly on the lamp side, and the
-crease flips track it. Not yet watched in live motion; the preview
-tab here can't run rAF, so the *feel* of the easing constant is
-unconfirmed. Nothing is committed.
-
-When you start something, move it here with a line on what you're
-actually doing — not the title, the approach — so an interrupted piece
-of work can be picked back up by someone who isn't you.
+Nothing. When you start something, move it here with a line on what
+you're actually doing — not the title, the approach — so an
+interrupted piece of work can be picked back up by someone who isn't
+you.
 
 ---
 
 ## Next
 
-Roughly in the order they're worth doing. The first three were scoped
-during the review that produced the two shipped items above; they're
-agreed, just not started.
+Roughly in the order they're worth doing.
 
-### 1. Export — get a drawing off the machine
+### 1. The type in the picture
 
-Strokes-as-data already bought undo, persistence and crisp resize.
-Export is the fourth thing it paid for and it hasn't been collected: a
-drawing currently can't leave the browser profile it was made in, which
-is a strange fate for something deliberately modeled as a document.
+The PNG is ink on paper, cropped to the ink, because a canvas can't
+draw the DOM. For drawings on the blank sheet that's exactly right; for
+annotations on the article it loses what they were annotating. The
+serious option is SVG `<foreignObject>` with the fonts and filters
+inlined, which Safari taints. Worth a spike to see what it costs.
 
-Two forms, both small. **PNG** via `toBlob()`, composited over a render
-of the sheet — ink alone on transparency isn't the artifact anyone
-wants. **JSON**, where `serialize()` already returns the right shape and
-`restore()` already validates on the way back in, so it's a
-download/drop-to-load pair and little else.
+### 2. Annotations that stay on their words
 
-The open question is UI. The tray is a deliberate, finished-looking row
-of pens and two more buttons may not belong in it.
+Strokes are positioned as a fraction of the sheet's width, but the type
+reflows with the window, so a circle drawn around a word on a laptop
+lands somewhere else on a phone. Fixing it means anchoring strokes to
+the text block they were drawn over. The blank sheet doesn't have the
+problem.
 
-### 2. Self-host the fonts
+### 3. Pencil redraw cost
 
-`index.html` pulls Caveat and Kalam from Google Fonts. The README opens
-with "no dependencies" and the sticky note *in the page itself* says
-"four files and zero dependencies," while there's a render-blocking
-third-party request that also leaks every visitor's IP to Google.
+Every undo re-renders the full stroke list, and `_graphite` stipples
+hundreds of arcs per segment. A few hundred pencil strokes will make
+undo perceptibly slow; caching a bitmap of everything below the current
+stroke would fix it. Not yet measured — measure before building. The
+fake canvas in `test/` can count the calls.
 
-Two `woff2` files and an `@font-face` block resolves the contradiction
-and kills the flash of fallback cursive. `dev.js` already serves
-`font/woff2`. Needs a call on committing binaries to the repo.
+### 4. Smaller things
 
-### 3. A test for stroke determinism
-
-The README claims undo→redo round-trips to an identical pixel count and
-quantifies replay drift at ~0.05%. Both are true and both were measured
-by hand.
-
-`mulberry32` seeding is the load-bearing detail of the whole stroke
-model and exactly the kind of thing that breaks silently: move one
-`rnd()` call inside `_graphite` and every replayed pencil stroke
-re-scatters, with nothing to catch it. One headless check against a
-canvas stub, counting `arc()` calls and their arguments, would pin it.
-
-### 4. The corner-peel page turn
-
-The identity feature. A draggable fold: the next sheet stacked
-underneath with a sliver of edge showing, grab the bottom corner and
-fold it back. Built from `clip-path` plus a mirrored shaded triangle
-rather than a rasterized 3D flip, so the blend modes and filters survive
-intact.
-
-This is what makes "the page *ends*" literal instead of asserted. It's
-also the most expensive item here, and the `clip-path` will fight the
-multiply stack in ways that won't surface until it's half-built. Worth
-doing after the cheap wins above, not before.
-
-### 5. Smaller things
-
-- **Pointer-tracked raking light.** `.sheet__light` is a fixed gradient;
-  driving its angle from the pointer would make the sheet read as a
-  surface being tilted.
 - **A paper-stock switcher** — legal pad, graph, kraft. Mostly a matter
   of swapping the rule pitch, the paper variables and the fleck density.
+  The blank sheet is the natural place for it.
 - **A hand-authored SVG wordmark** that genuinely writes itself, instead
   of a font revealed by a mask.
-- **Favicon, `theme-color`, and an OG image.** A project this visual has
-  no social preview card, and the OG image could just be a screenshot of
-  the sheet.
+- **Dragging the page back.** Turning forward is a drag; turning back is
+  only a click on **← no. 01**. A corner of the turned sheet to take
+  hold of would make it symmetric.
 - **Redo across a clear.** Undoing a clear restores the strokes but
   drops the redo branch. Consistent with how a new stroke branches
   history, but a proper command stack would handle both.
-- **Pencil redraw cost.** Every undo re-renders the full stroke list,
-  and `_graphite` stipples hundreds of arcs per segment. A few hundred
-  pencil strokes will make undo perceptibly slow; caching a bitmap of
-  everything below the current stroke would fix it. Not yet measured —
-  measure before building.
 
 ---
 
 ## Not doing
 
 - **Infinite scroll.** The name is the argument: a deckle edge means the
-  sheet was made rather than manufactured, and that the page ends.
+  sheet was made rather than manufactured, and that the page ends. It
+  now literally does — there are two sheets, and the second says so.
 - **A build step or a framework.** The constraint is load-bearing. Four
   source files that a browser reads directly is the point, not an
   accident of scale.

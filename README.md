@@ -7,6 +7,8 @@ A website that tries very hard to be a physical sheet of paper you can
 write on. No build step, no dependencies, no design tool — four source
 files and a browser, plus a dev server if you want live reload.
 
+**See it: <https://ntvns0.github.io/deckle/>**
+
 The name is the argument. A deckle edge is what you get when a sheet is
 made rather than manufactured, and it's a promise that the page *ends* —
 which is why this is paginated and will never be an infinite scroll.
@@ -22,8 +24,13 @@ cd deckle
 node dev.js
 ```
 
-Then open **<http://127.0.0.1:8787>**. Edit any of `index.html`,
+Then open **<http://localhost:8787>**. Edit any of `index.html`,
 `styles.css`, `ink.js` or `page.js` and the browser reloads itself.
+
+It listens on your network too, so you can open it on a phone and draw
+with a finger or a stylus; `dev.js` prints the LAN address (and the
+Tailscale one, if you're on a tailnet) when it starts. `HOST=127.0.0.1
+node dev.js` keeps it to this machine.
 
 That's the whole setup. A few things worth knowing once you're in:
 
@@ -33,6 +40,8 @@ That's the whole setup. A few things worth knowing once you're in:
 | Stop drawing | `1`, `Esc`, or the ✋ button |
 | Undo / redo | `⌘Z` / `⇧⌘Z` (`ctrl` on Windows and Linux) |
 | Start over | **clear** — and `⌘Z` puts it back |
+| Turn the page | drag the turned-up corner at the bottom right, or click it; **← no. 01** turns back |
+| Send someone your drawing | **share** → copy a link, or download a picture or the drawing file |
 | See it as paper | `⌘P`; the print view drops every faked texture |
 
 **Port already taken?** `dev.js` says so and exits rather than failing
@@ -46,11 +55,28 @@ that without breaking; it just forgets.
 
 ### What the dev server is
 
-Static file server plus live reload, zero dependencies, ~140 lines. It
+Static file server plus live reload, zero dependencies, ~190 lines. It
 watches the four source files and pushes a reload over Server-Sent
 Events; the client script is injected into the HTML on the way out, so
 nothing in the source knows it exists. It also reconnects on its own,
 so you can edit `dev.js` and restart it without touching the browser.
+
+Because it's on the network, it's careful about what it hands out:
+only files inside the project, never a dotfile or anything under a
+dot-directory (`.git` holds the whole history), and a malformed URL is
+a 400 rather than a crash. `test/dev-server.test.js` holds it to that.
+
+### Tests
+
+```sh
+node --test
+```
+
+No framework, nothing to install: `node:test` and a fake canvas that
+writes down every drawing call. They cover the stroke model (undo,
+redo, clear and save/restore all replay identically, and a pinned
+pencil stroke fails if the seeded scatter ever changes), the link
+format, and the dev server. CI runs them on every push.
 
 ---
 
@@ -100,7 +126,7 @@ the lines instead of floating between them.
 
 ## The ink engine (`ink.js`)
 
-~300 lines, no dependencies. A stroke drawn with a constant `lineWidth`
+A few hundred lines, no dependencies. A stroke drawn with a constant `lineWidth`
 reads as a computer line every time, so instead each stroke is a chain of
 filled quads whose width tracks pointer velocity — fast is thin, slow is
 fat — smoothed between samples. Real stylus pressure overrides velocity
@@ -137,8 +163,13 @@ at once:
   more on every resize.
 - **Deterministic pencil** — graphite is scattered at random, so each
   stroke carries a seed and the scatter is replayed from a `mulberry32`
-  PRNG. Without it every undo would re-shuffle the pencil. Verified:
-  undo→redo round-trips to the identical pixel count.
+  PRNG. Without it every undo would re-shuffle the pencil. The tests pin
+  a fixed stroke's scatter to a hash, so moving one `rnd()` call inside
+  `_graphite` fails CI instead of silently re-scattering every saved
+  drawing.
+
+And a fifth, collected later: **a drawing can leave the browser**. See
+[Sharing a drawing](#sharing-a-drawing).
 
 Storage degrades gracefully — on a quota error it drops the oldest
 quarter of the strokes and retries rather than losing everything, and a
@@ -180,60 +211,138 @@ is the sheet, not decoration. And the reveal animations start at
 print job would produce a beautifully textured blank page; print forces
 every `.write`, `.fade` and `.draw` to its finished state.
 
+It prints the page you're on, and only that one.
+
 Known limit: ink lives on one canvas sized to the whole sheet, and a
 canvas won't split across a page break, so a drawing that spans several
 printed pages gets cut at the first one.
 
-## The two surfaces
+## The page turn
+
+The name is the argument, and this is where it stops being asserted:
+the page ends, and you turn it. The pad is two sheets of the same size
+stacked in one grid cell — the article on top, a fresh ruled sheet
+underneath with a sliver of its edge showing. The top sheet's bottom
+right corner sits turned up as a dog-ear; reach for it and it lifts a
+little more.
+
+There is no 3D transform and no screenshot of the page. The corner is
+at C, your hand has carried it to D, and the fold is the perpendicular
+bisector of CD. The sheet is `clip-path`ed to the far side of that
+line, and the part beyond it is drawn again as its own back: the same
+outline reflected across the fold, filled with the paper's grain and
+shaded as a curl — dark in the crease, a bright band where the curve
+faces the room. Both are plain clip-paths, so every multiply blend and
+SVG filter on the page keeps working while it turns. It holds 60fps on
+an integrated GPU.
+
+Paper doesn't stretch, so the corner is held within a sheet-width of
+the bottom left, where the page is still lying flat. Let go past
+halfway (or throw it) and it goes over; short of that it drops back.
+Clicking the corner, or Enter on it, turns it for you; **← no. 01** at
+the top of the next sheet brings the first one back.
+
+One bug worth remembering: the flap was first a sheet-sized box with a
+reflection `transform`. A transformed box counts toward the page's
+scroll height, so the page grew a sheet's worth of empty desk at the
+bottom. The flap is now placed and sized to its own outline.
+
+## The surfaces
 
 The controls are in [Run it](#run-it); this is the behaviour behind
 them, which is less obvious.
 
-There are two places to draw. The **scratch pad** is always live. The
-**sheet** only accepts marks once you've picked up a nib — in reading
-mode its canvas is `pointer-events: none`, so text stays selectable and
-you can't scribble on the page by accident.
+There are three places to draw. The **scratch pad** is always live. The
+two **sheets** only accept marks once you've picked up a nib — in
+reading mode their canvases are `pointer-events: none`, so text stays
+selectable and you can't scribble on the page by accident. With a nib
+in hand, the type lets strokes through to the ink underneath it.
 
-Undo applies to whichever surface you drew on last, falling through to
-the other one when that one has nothing left; the button is enabled if
-*either* surface can act, so it must never be a no-op. That history
-reaches back over `clear`, which is why the button is recoverable
-rather than final.
+(For a long time that last part was missing: the type sits above the
+ink canvas and quietly caught every stroke, so only the pad ever took
+marks. The checks that "verified" it fired events straight at the
+canvas, which is exactly the path a real pointer never takes. It's
+fixed, and it was found by driving a real browser with real input.)
+
+Undo applies to the page you're looking at — whichever of its surfaces
+you drew on last, falling through to the other when that one has
+nothing left. The button is enabled if *any* of them can act, so it
+must never be a no-op. That history reaches back over `clear`, which
+is why the button is recoverable rather than final. Clear, likewise,
+only clears the page you're on.
 
 Everything you draw lives on a canvas sized to the whole sheet, so it
 scrolls with the page, survives a resize, and comes back after a reload.
 
+## Sharing a drawing
+
+**share** in the tray, three ways out and one way in.
+
+- **A link.** The whole drawing is packed into the URL's fragment —
+  after the `#`, which browsers never send to a server. There's no
+  backend and nothing stored anywhere but the link. Points are already
+  multiples of 1e-5 of the sheet width, so they pack exactly as
+  integers; consecutive samples are close together, so they're stored
+  as small differences in one or two bytes each; deflate does the rest.
+  Being exact matters, because pencil replays its scatter from the
+  points. A few strokes come to well under a kilobyte. On a phone it
+  opens the share sheet; over plain `http` on the LAN, where browsers
+  withhold the clipboard, it shows the link to copy.
+- **A picture.** Your ink, redrawn from the stroke list at 2x on the
+  sheet's own paper: colour, the same turbulence textures, the ruling
+  and the margin. The type isn't in it — a canvas can't draw the DOM —
+  so it's cropped to the ink.
+- **A file.** `.json`, the same shape `serialize()` has always
+  returned. Open one from the menu or drop it on the page.
+
+Anything that arrives from a link or a file is someone else's drawing:
+a note says so, nothing is saved while it's up, and your own waits
+underneath until you either go **back to my page** or **keep it as
+mine**. Links and files are anyone's input, so the decoder bounds every
+count before allocating, rejects truncated or trailing bytes, and stops
+inflating at 16 MB; `restore()` drops any stroke that isn't well formed.
+
+Known limit: strokes are positioned as a fraction of the sheet's width,
+but the type reflows with the window. Annotations made over the text on
+a laptop land on different words on a phone. A drawing on the blank
+sheet travels exactly.
+
 ## Files
 
 ```
-dev.js       static server + live reload
 index.html   markup + the SVG filter definitions
 styles.css   the paper
-ink.js       the variable-width stroke engine + stroke model
-page.js      reveals, tilt, tool tray, storage, undo
+ink.js       the variable-width stroke engine, stroke model, link format
+page.js      reveals, tilt, the page turn, tool tray, storage, sharing
+
+dev.js       static server + live reload
+test/        node:test — stroke replay, link format, dev server
+fonts/       Caveat and Kalam, Latin subset, with their licences
+icon.svg, apple-touch-icon.png, og.png   favicon and link preview
 ```
+
+The site is published to GitHub Pages by `.github/workflows/pages.yml`
+on every push to `main`: tests first, then the files the page loads,
+copied as they are.
 
 ## Next
 
-See **[ROADMAP.md](ROADMAP.md)** for what's shipped, what's being worked
-on, and what's queued.
-
-The headline item is a draggable corner-peel page turn: the next sheet
-stacked underneath with a sliver of edge showing, grab the bottom corner
-to fold it back. Built from `clip-path` plus a mirrored shaded triangle
-rather than a rasterized 3D flip, so the blend modes and SVG filters
-survive intact.
+See **[ROADMAP.md](ROADMAP.md)** for what's shipped and what's queued.
 
 ## Contributing
 
 Issues and pull requests are welcome. There's no build step and nothing
-to install — clone it, run `node dev.js`, and edit. If you're adding a
-nib, it's a single entry in the `NIBS` table in `ink.js` plus a swatch in
-the tray.
+to install — clone it, run `node dev.js`, edit, and run `node --test`
+before you push. If you're adding a nib, it's a single entry in the
+`NIBS` table in `ink.js` plus a swatch in the tray — and add it to the
+*end* of `TOOLS` in the same file, because its position there is
+written into every shared link.
 
 ## License
 
 [MIT](LICENSE).
 
-Fonts are Caveat and Kalam from Google Fonts, with a `cursive` fallback if
-they don't load. `prefers-reduced-motion` skips every animation.
+The fonts are Caveat and Kalam, served from `fonts/` rather than Google
+Fonts — no third-party request, no visitor IP handed to anyone. Both
+are under the SIL Open Font License; the licences are alongside them.
+`prefers-reduced-motion` skips every animation, the page turn included.
